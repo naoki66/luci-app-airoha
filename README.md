@@ -7,6 +7,7 @@ Standalone LuCI feed for Airoha/Gemtek firmware builds.
 - `luci-app-airoha`: Airoha NPU and PPE status, controls, and diagnostics.
 - `luci-app-airoha-factory`: factory identity and calibration helpers.
 - `luci-app-airoha-recovery`: U-Boot HTTP recovery controls.
+- `luci-app-airoha-fancontrol`: fan speed, temperature, and curve controls.
 - `luci-app-netmode`: network mode and backhaul status controls.
 - `luci-app-mesh-conf`: mesh and wired backhaul configuration.
 
@@ -30,6 +31,6 @@ profiles can continue selecting them after the feed is installed.
 
 ## Scope
 
-This repository contains only the five LuCI packages above. Device trees,
+This repository contains only the six LuCI packages above. Device trees,
 target support, board defaults, firmware images, and private reverse-engineering
 material remain in the corresponding firmware repositories.
