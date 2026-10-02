@@ -59,10 +59,9 @@ _find_cpufreq_policy() {
 	return 1
 }
 
-# The Gemtek AN7581 profiles are validated through 1.4 GHz. Keep every CPU
-# control path on the same ceiling even if a future kernel exposes experimental
-# 1.45-1.6 GHz OPPs.
-CPU_MAX_FREQ_KHZ=1400000
+# Keep the UI and every runtime control path at the validated 1.2 GHz ceiling.
+# Some firmware exposes higher OPPs, but selecting them is not supported here.
+CPU_MAX_FREQ_KHZ=1200000
 
 _cpu_frequencies() {
 	local dir="$1" freq values
@@ -310,9 +309,14 @@ get_token_info() {
 
 # Persist CPU governor / max_freq to UCI so the choice survives a reboot.
 _uci_persist_cpu() {
-	uci -q get airoha_npu.@cpu[0] >/dev/null 2>&1 || uci set airoha_npu.@cpu[0]=cpu
-	[ -n "$1" ] && uci set airoha_npu.@cpu[0].governor="$1"
-	[ -n "$2" ] && uci set airoha_npu.@cpu[0].max_freq="$2"
+	uci -q get airoha_npu.@cpu[0] >/dev/null 2>&1 || \
+		uci add airoha_npu cpu >/dev/null 2>&1 || return 1
+	if [ -n "$1" ] && ! uci set airoha_npu.@cpu[0].governor="$1"; then
+		return 1
+	fi
+	if [ -n "$2" ] && ! uci set airoha_npu.@cpu[0].max_freq="$2"; then
+		return 1
+	fi
 	uci commit airoha_npu
 }
 
@@ -340,7 +344,10 @@ set_governor() {
 
 	echo "$governor" > "$cpufreq_path/scaling_governor" 2>/dev/null
 	if [ $? -eq 0 ]; then
-		_uci_persist_cpu "$governor"
+		if ! _uci_persist_cpu "$governor"; then
+			echo '{"error":"CPU governor applied but could not be persisted"}'
+			return
+		fi
 		printf '{"result":"ok","governor":"%s"}' "$governor"
 	else
 		echo '{"error":"failed to set governor"}'
@@ -370,7 +377,10 @@ set_max_freq() {
 
 	echo "$freq" > "$cpufreq_path/scaling_max_freq" 2>/dev/null
 	if [ $? -eq 0 ]; then
-		_uci_persist_cpu "" "$freq"
+		if ! _uci_persist_cpu "" "$freq"; then
+			echo '{"error":"CPU max frequency applied but could not be persisted"}'
+			return
+		fi
 		printf '{"result":"ok","freq":%d}' "$freq"
 	else
 		echo '{"error":"failed to set max frequency"}'
@@ -426,7 +436,10 @@ set_cpu_settings() {
 		fi
 	fi
 
-	_uci_persist_cpu "$governor" "$freq"
+	if ! _uci_persist_cpu "$governor" "$freq"; then
+		echo '{"error":"CPU settings applied but could not be persisted"}'
+		return
+	fi
 
 	local out='{"result":"ok"'
 	[ -n "$governor" ] && out="$out,\"governor\":\"$governor\""

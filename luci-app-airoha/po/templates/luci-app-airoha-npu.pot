@@ -70,9 +70,6 @@ msgstr ""
 msgid "Current frequency (cpuinfo_cur_freq)"
 msgstr ""
 
-msgid "Governor frequency (scaling_cur_freq)"
-msgstr ""
-
 msgid "VLAN passthrough"
 msgstr ""
 

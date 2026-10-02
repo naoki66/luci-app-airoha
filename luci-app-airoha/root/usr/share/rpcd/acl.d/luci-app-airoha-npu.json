@@ -1,5 +1,5 @@
 {
-	"luci-app-airoha": {
+	"luci-app-airoha-npu": {
 		"description": "Grant access to Airoha SoC, NPU, offload and WiFi status",
 		"read": {
 			"ubus": {

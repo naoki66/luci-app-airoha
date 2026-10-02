@@ -2,9 +2,9 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_NAME:=luci-app-airoha
+LUCI_NAME:=luci-app-airoha-npu
 PKG_VERSION:=2.0.0
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=XR1710G Maintainer
 TITLE:=LuCI Airoha XR1710G / XG2010G Status
@@ -30,6 +30,7 @@ define Package/$(LUCI_NAME)/install
 	# Install UCI configuration
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_DATA) ./root/etc/config/npu-monitor $(1)/etc/config/
+	$(INSTALL_DATA) ./root/etc/config/airoha_npu $(1)/etc/config/
 
 	# Install init.d script (executable)
 	$(INSTALL_DIR) $(1)/etc/init.d
@@ -48,15 +49,15 @@ define Package/$(LUCI_NAME)/install
 
 	# Install LuCI menu configuration.
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
-	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-airoha.json $(1)/usr/share/luci/menu.d/
+	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-airoha-npu.json $(1)/usr/share/luci/menu.d/
 
 	# Install RPC ACL configuration.
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
-	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-airoha.json $(1)/usr/share/rpcd/acl.d/
+	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json $(1)/usr/share/rpcd/acl.d/
 
 	# Preserve runtime-created acceleration settings during sysupgrade.
 	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
-	$(INSTALL_DATA) ./root/lib/upgrade/keep.d/luci-app-airoha $(1)/lib/upgrade/keep.d/
+	$(INSTALL_DATA) ./root/lib/upgrade/keep.d/luci-app-airoha-npu $(1)/lib/upgrade/keep.d/
 
 	# Install init script that re-applies persisted CPU governor / max_freq at boot.
 	# Bake the rc.d symlink so the service is enabled on a freshly flashed image too
@@ -69,6 +70,7 @@ endef
 
 define Package/$(LUCI_NAME)/conffiles
 /etc/config/npu-monitor
+/etc/config/airoha_npu
 endef
 
 define Package/$(LUCI_NAME)/postinst
@@ -118,7 +120,7 @@ endef
 #
 # feeds/luci/luci.mk (included above) already runs
 #   $(foreach pkg,$(LUCI_BUILD_PACKAGES),$(eval $(call BuildPackage,$(pkg))))
-# for this app and the luci-i18n-airoha-<lang> translation packages, so no
+# for this app and the luci-i18n-airoha-npu-<lang> translation packages, so no
 # explicit BuildPackage eval must be added here (that would define the package
 # twice). The literal string above is nevertheless REQUIRED: include/scan.mk
 # discovers package Makefiles with

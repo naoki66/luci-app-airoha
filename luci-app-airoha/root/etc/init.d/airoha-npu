@@ -11,7 +11,9 @@
 START=89
 
 CPUFREQ_ROOT=/sys/devices/system/cpu/cpufreq
-CPU_MAX_FREQ_KHZ=1400000
+CPU_MAX_FREQ_KHZ=1200000
+CPU_DEFAULT_GOVERNOR=ondemand
+CPU_DEFAULT_MAX_FREQ_KHZ=1200000
 
 find_cpufreq_policy() {
 	local dir
@@ -23,18 +25,23 @@ find_cpufreq_policy() {
 	return 1
 }
 
+freq_values() {
+	local dir="$1" values
+
+	values=$(cat "$dir/scaling_available_frequencies" 2>/dev/null)
+	[ -n "$values" ] || values="$(cat "$dir/scaling_min_freq" 2>/dev/null) \
+$(cat "$dir/scaling_max_freq" 2>/dev/null) \
+$(cat "$dir/cpuinfo_min_freq" 2>/dev/null) \
+$(cat "$dir/cpuinfo_max_freq" 2>/dev/null)"
+	printf '%s\n' "$values"
+}
+
 freq_allowed() {
 	local dir="$1" freq="$2" value values
 
 	case "$freq" in ''|*[!0-9]*) return 1 ;; esac
 	[ "$freq" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null || return 1
-	values=$(cat "$dir/scaling_available_frequencies" 2>/dev/null)
-	if [ -z "$values" ]; then
-		values="$(cat "$dir/scaling_min_freq" 2>/dev/null) \
-$(cat "$dir/scaling_max_freq" 2>/dev/null) \
-$(cat "$dir/cpuinfo_min_freq" 2>/dev/null) \
-$(cat "$dir/cpuinfo_max_freq" 2>/dev/null)"
-	fi
+	values=$(freq_values "$dir")
 	for value in $values; do
 		[ "$value" = "$freq" ] && return 0
 	done
@@ -50,14 +57,24 @@ apply_cpu_settings() {
 	max_freq=$(uci -q get airoha_npu.@cpu[0].max_freq 2>/dev/null)
 	[ -n "$governor" ] || governor=$(uci -q get cpufreq.cpufreq.governor0 2>/dev/null)
 	[ -n "$max_freq" ] || max_freq=$(uci -q get cpufreq.cpufreq.maxfreq0 2>/dev/null)
+	[ -n "$governor" ] || governor="$CPU_DEFAULT_GOVERNOR"
+	[ -n "$max_freq" ] || max_freq="$CPU_DEFAULT_MAX_FREQ_KHZ"
 
-	[ -n "$max_freq" ] && [ -w "$sys_dir/scaling_max_freq" ] && {
-		if freq_allowed "$sys_dir" "$max_freq"; then
-			echo "$max_freq" > "$sys_dir/scaling_max_freq" 2>/dev/null
-		fi
-	}
+	# Do not leave an old 1.4 GHz value active when an older config is found.
+	# Fall back to the highest kernel-advertised OPP at or below 1.2 GHz.
+	if ! freq_allowed "$sys_dir" "$max_freq"; then
+		max_freq=""
+		for value in $(freq_values "$sys_dir" | tr ' ' '\n' | sort -n); do
+			if [ "$value" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null; then
+				max_freq="$value"
+			fi
+		done
+		[ -n "$max_freq" ] || max_freq="$CPU_DEFAULT_MAX_FREQ_KHZ"
+	fi
 
-	[ -n "$governor" ] && [ -w "$sys_dir/scaling_governor" ] && {
+	[ -w "$sys_dir/scaling_max_freq" ] && echo "$max_freq" > "$sys_dir/scaling_max_freq" 2>/dev/null
+
+	[ -w "$sys_dir/scaling_governor" ] && {
 		if echo "$governor" | grep -qw "$(cat "$sys_dir/scaling_available_governors" 2>/dev/null)"; then
 			echo "$governor" > "$sys_dir/scaling_governor" 2>/dev/null
 		fi
@@ -65,9 +82,9 @@ apply_cpu_settings() {
 }
 
 start() {
-	# Wait (bounded, ~5s) for the cpufreq sysfs node, then apply persisted settings.
+	# Wait (bounded, ~15s) for cpufreq to appear before applying persisted settings.
 	local i=0
-	while ! find_cpufreq_policy >/dev/null && [ $i -lt 5 ]; do
+	while ! find_cpufreq_policy >/dev/null && [ $i -lt 15 ]; do
 		sleep 1
 		i=$((i + 1))
 	done

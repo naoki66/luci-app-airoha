@@ -295,8 +295,7 @@ function renderFreqCard(st) {
 				label: aui.fmtFreq(s.freq),
 				tall: true, fillId: 'cpu-freq-fill', labelId: 'cpu-freq-text'
 			}),
-			aui.row(_('Frequency Range'), aui.fmtFreq(st.cpu_min_freq) + ' – ' + aui.fmtFreq(st.cpu_max_freq)),
-			aui.row(_('Governor frequency (scaling_cur_freq)'), aui.fmtFreq(st.cpu_cur_freq))
+			aui.row(_('Frequency Range'), aui.fmtFreq(st.cpu_min_freq) + ' – ' + aui.fmtFreq(st.cpu_max_freq))
 		]
 	});
 }
@@ -365,11 +364,14 @@ function renderGovSelect(avail, active, reason) {
 
 function renderMaxFreqSelect(avail, cur, reason) {
 	var freqs = splitList(avail).map(function(f) { return parseInt(f, 10); })
-		.filter(function(f) { return isFinite(f) && f > 0 && f <= 1400000; })
+		.filter(function(f) { return isFinite(f) && f > 0 && f <= 1200000; })
 		.filter(function(f, i, values) { return values.indexOf(f) === i; })
 		.sort(function(a, b) { return a - b; })
 		.map(String);
-	return cpuSelect('cpu-maxfreq-select', freqs, cur || '', reason, function(f) {
+	var active = String(cur || '');
+	if (freqs.length && freqs.indexOf(active) < 0)
+		active = freqs[freqs.length - 1];
+	return cpuSelect('cpu-maxfreq-select', freqs, active, reason, function(f) {
 		return Math.round(parseInt(f, 10) / 1000) + ' MHz';
 	});
 }
@@ -901,8 +903,8 @@ return view.extend({
 				var ci = document.getElementById('cpu-info-content');
 				if (ci) { ci.innerHTML = ''; ci.appendChild(renderCpuInfo(st)); }
 
-				// Freq card — always rebuild so the range and scaling_cur_freq rows
-				// never retain their first-render N/A values.
+				// Freq card — always rebuild so the live range never retains its
+				// first-render N/A value.
 				var fc = document.getElementById('cpu-freq-card');
 				if (fc) { fc.innerHTML = ''; fc.appendChild(renderFreqCard(st)); }
 
