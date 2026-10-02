@@ -1,0 +1,15 @@
+{
+	"luci-app-netmode": {
+		"description": "Grant access to the network mode switcher (AP / DHCP / PPPoE)",
+		"read": {
+			"ubus": {
+				"luci.netmode": [ "getStatus" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci.netmode": [ "applyMode" ]
+			}
+		}
+	}
+}

@@ -1,0 +1,15 @@
+* -text
+*.patch text eol=lf
+*.sh text eol=lf
+*.json text eol=lf
+*.js text eol=lf
+*.po text eol=lf
+*.pot text eol=lf
+*.init text eol=lf
+*.conf text eol=lf
+*.mk text eol=lf
+
+# LuCI and rpcd scripts must retain executable bits in the feed checkout.
+**/root/etc/init.d/* text eol=lf
+**/root/usr/libexec/* text eol=lf
+**/root/usr/sbin/* text eol=lf
