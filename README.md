@@ -1,10 +1,10 @@
-# luci-app-airoha
+# luci-app-airoha-npu
 
 Standalone LuCI feed for Airoha/Gemtek firmware builds.
 
 ## Packages
 
-- `luci-app-airoha`: Airoha NPU and PPE status, controls, and diagnostics.
+- `luci-app-airoha-npu`: Airoha NPU and PPE status, controls, and diagnostics.
 - `luci-app-airoha-factory`: factory identity and calibration helpers.
 - `luci-app-airoha-recovery`: U-Boot HTTP recovery controls.
 - `luci-app-airoha-fancontrol`: fan speed, temperature, and curve controls.
