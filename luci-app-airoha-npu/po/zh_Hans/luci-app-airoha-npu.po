@@ -27,8 +27,8 @@ msgstr "已激活"
 msgid "Active"
 msgstr "活动"
 
-msgid "Airoha"
-msgstr "Airoha"
+msgid "Airoha Soc"
+msgstr "Airoha SoC"
 
 msgid "Airoha SoC Status"
 msgstr "Airoha SoC状态"
@@ -515,9 +515,6 @@ msgstr "累计发送"
 
 msgid "Signal"
 msgstr "信号"
-
-msgid "SoC / NPU"
-msgstr "SoC / NPU"
 
 msgid "State"
 msgstr "状态"

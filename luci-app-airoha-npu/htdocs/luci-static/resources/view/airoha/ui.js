@@ -55,6 +55,8 @@ var COMPONENT_CSS = [
 	'.ai-grid{display:grid;gap:var(--ds-sp-2)}',
 	'.ai-grid--tiles{grid-template-columns:repeat(auto-fit,minmax(11.5em,1fr))}',
 	'.ai-grid--2{grid-template-columns:repeat(auto-fit,minmax(20em,1fr))}',
+	'.ai-grid--2>*{display:flex;flex-direction:column}',
+	'.ai-grid--2 .ai-card{flex:1}',
 	'.ai-grid--3{grid-template-columns:repeat(auto-fit,minmax(15em,1fr))}',
 	'.ai-grid--4{grid-template-columns:repeat(auto-fit,minmax(12em,1fr))}',
 	'.ai-grid--bands{grid-template-columns:repeat(auto-fit,minmax(7.5em,1fr))}',

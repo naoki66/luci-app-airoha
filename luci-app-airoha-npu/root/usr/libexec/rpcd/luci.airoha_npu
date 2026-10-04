@@ -84,12 +84,12 @@ $(cat "$dir/cpuinfo_max_freq" 2>/dev/null)"
 }
 
 _cpu_freq_allowed() {
-	local dir="$1" freq="$2"
+	local freq="$2"
 
 	case "$freq" in ''|*[!0-9]*) return 1 ;; esac
 	[ "$freq" -ge "$CPU_MIN_FREQ_KHZ" ] 2>/dev/null || return 1
 	[ "$freq" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null || return 1
-	_cpu_frequencies "$dir" | grep -qx "$freq"
+	return 0
 }
 
 _cpu_governor_allowed() {

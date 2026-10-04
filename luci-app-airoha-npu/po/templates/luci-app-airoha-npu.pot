@@ -22,7 +22,7 @@ msgstr ""
 msgid "Active"
 msgstr ""
 
-msgid "Airoha"
+msgid "Airoha Soc"
 msgstr ""
 
 msgid "Airoha SoC Status"
@@ -509,9 +509,6 @@ msgid "Sent"
 msgstr ""
 
 msgid "Signal"
-msgstr ""
-
-msgid "SoC / NPU"
 msgstr ""
 
 msgid "State"

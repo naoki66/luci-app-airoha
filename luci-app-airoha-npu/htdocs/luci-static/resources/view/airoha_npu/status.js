@@ -368,13 +368,17 @@ function renderGovSelect(avail, active, reason) {
 function renderMaxFreqSelect(avail, cur, reason) {
 	var freqs = splitList(avail).map(function(f) { return parseInt(f, 10); })
 		.filter(function(f) { return isFinite(f) && f >= CPU_MIN_FREQ_KHZ && f <= CPU_MAX_FREQ_KHZ; })
-		.filter(function(f, i, values) { return values.indexOf(f) === i; })
-		.sort(function(a, b) { return a - b; })
-		.map(String);
-	var active = String(cur || '');
-	if (freqs.length && freqs.indexOf(active) < 0)
-		active = freqs[freqs.length - 1];
-	return cpuSelect('cpu-maxfreq-select', freqs, active, reason, function(f) {
+		.filter(function(f, i, values) { return values.indexOf(f) === i; });
+	var activeNum = parseInt(cur, 10);
+	// The select must mirror the live kernel value: when scaling_max_freq is
+	// missing from the advertised list (quirky OPP table), inject it as an
+	// option instead of silently clamping the display to a different value.
+	if (isFinite(activeNum) && activeNum >= CPU_MIN_FREQ_KHZ && activeNum <= CPU_MAX_FREQ_KHZ && freqs.indexOf(activeNum) < 0)
+		freqs.push(activeNum);
+	freqs.sort(function(a, b) { return a - b; });
+	var active = isFinite(activeNum) && activeNum > 0 ? String(activeNum)
+		: (freqs.length ? String(freqs[freqs.length - 1]) : '');
+	return cpuSelect('cpu-maxfreq-select', freqs.map(String), active, reason, function(f) {
 		return Math.round(parseInt(f, 10) / 1000) + ' MHz';
 	});
 }
@@ -925,7 +929,18 @@ return view.extend({
 				} else if (!cpuSettingsDirty) {
 					if (!gs.matches(':focus')) gs.value = st.cpu_governor || '';
 					var fsSel = document.getElementById('cpu-maxfreq-select');
-					if (fsSel && !fsSel.matches(':focus')) fsSel.value = (st.cpu_max_freq || 0).toString();
+					if (fsSel && !fsSel.matches(':focus')) {
+						var target = (st.cpu_max_freq || 0).toString();
+						var hasOpt = Array.from(fsSel.options).some(function(o) { return o.value === target; });
+						if (hasOpt) {
+							fsSel.value = target;
+						} else {
+							// Option list is stale (live value not selectable) — rebuild
+							// so renderMaxFreqSelect can inject the current kernel value.
+							var cc = document.getElementById('cpu-control-content');
+							if (cc) { cc.innerHTML = ''; cc.appendChild(renderControlSettings(st)); }
+						}
+					}
 				}
 
 				updateOffloadControl('vlan-offload-select', 'vlan-offload-badge', 'vlan-offload-row', vo.enabled, bridgeBlocked);
