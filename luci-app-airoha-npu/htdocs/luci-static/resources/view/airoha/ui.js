@@ -111,7 +111,9 @@ var COMPONENT_CSS = [
 	'.ai-bar-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--ds-sp-2);font-size:var(--ds-fs-xs);color:var(--ds-text-muted)}',
 	'.ai-bar-track{position:relative;height:.5em;margin-top:var(--ds-sp-1);border-radius:var(--ds-r-sm);background:var(--ds-surface-sunken);border:1px solid var(--ds-border);overflow:hidden}',
 	'.ai-bar-fill{height:100%;border-radius:var(--ds-r-sm);background:var(--ai-accent,var(--ds-primary));transition:width .4s}',
-	'.ai-bar--tall .ai-bar-track{height:1.8em}',
+	'.ai-bar--tall .ai-bar-head{font-size:var(--ds-fs-sm)}',
+	'.ai-bar--tall .ai-bar-track{height:3.4em}',
+	'.ai-bar--tall .ai-bar-label{font-size:var(--ds-fs-base)}',
 	'.ai-bar-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--ds-mono);font-weight:700;font-size:var(--ds-fs-sm);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}',
 
 	'.ai-gauge-row{display:grid;justify-content:center;gap:var(--ds-sp-3);grid-template-columns:repeat(auto-fit,minmax(13.5em,22em))}',

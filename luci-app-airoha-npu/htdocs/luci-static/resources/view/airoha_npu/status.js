@@ -287,20 +287,83 @@ function renderCpuInfo(st) {
 
 function renderFreqCard(st) {
 	st = st || {};
-	var s = freqState(st);
 	return aui.card({
-		name: _('Current Frequency'), tag: _('CPU freq / PLL'), accent: 'var(--ds-ok)',
-		body: [
-			aui.bar({
-				title: _('Current frequency (cpuinfo_cur_freq)'), right: aui.fmtFreq(s.freq) + ' / ' + aui.fmtFreq(s.max),
-				pct: (s.max > s.min) ? Math.round((s.freq - s.min) / (s.max - s.min) * 100) : 0,
-				accent: 'var(--ds-ok)',
-				label: aui.fmtFreq(s.freq),
-				tall: true, fillId: 'cpu-freq-fill', labelId: 'cpu-freq-text'
-			}),
-			aui.row(_('Frequency Range'), aui.fmtFreq(st.cpu_min_freq) + ' – ' + aui.fmtFreq(st.cpu_max_freq))
-		]
+		name: _('CPU Control'), accent: 'var(--ds-ok)',
+		body: E('div', { 'id': 'cpu-control-content' }, [ renderControlSettings(st) ])
 	});
+}
+
+/* ── Frequency history chart ──
+ * One sample per 5 s poll, 120 samples = 10 minutes of history. The chart is
+ * re-rendered on every poll from the module-level buffer, so it survives the
+ * card never being rebuilt. */
+var FREQ_HISTORY_MAX = 120;
+var freqHistory = [];
+
+function pushFreqSample(khz) {
+	if (!(khz > 0)) return;
+	freqHistory.push(khz);
+	if (freqHistory.length > FREQ_HISTORY_MAX) freqHistory.shift();
+}
+
+/* LuCI's E() uses document.createElement() and cannot create SVG-namespace
+ * elements, so build chart nodes with createElementNS. */
+var SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs, children) {
+	var el = document.createElementNS(SVG_NS, tag);
+	if (attrs) for (var k in attrs) el.setAttribute(k, attrs[k]);
+	if (children) for (var i = 0; i < children.length; i++) el.appendChild(children[i]);
+	return el;
+}
+
+function renderFreqChart(min, max, containerW) {
+	var lo = (min > 0) ? min : CPU_MIN_FREQ_KHZ;
+	var hi = (max > lo) ? max : CPU_MAX_FREQ_KHZ;
+	var n = freqHistory.length;
+	if (!n) return E('div', { 'class': 'ai-empty' }, _('No data'));
+
+	var W = Math.round(containerW > 0 ? containerW : 600);
+	var H = 240, padX = 6, padT = 14, padB = 6;
+	var innerW = W - padX * 2, innerH = H - padT - padB;
+	var span = hi - lo;
+	function yOf(f) {
+		var c = Math.min(Math.max(f, lo), hi);
+		return padT + innerH - (c - lo) / span * innerH;
+	}
+	var pts = [], xs = [], ys = [];
+	for (var i = 0; i < n; i++) {
+		var x = padX + (FREQ_HISTORY_MAX - n + i) / (FREQ_HISTORY_MAX - 1) * innerW;
+		var y = yOf(freqHistory[i]);
+		xs.push(x); ys.push(y);
+		pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+	}
+	if (n === 1) { xs.unshift(padX); ys.unshift(ys[0]); pts.unshift(padX + ',' + ys[0].toFixed(1)); }
+	/* Close the area fill at the first/last data x, not the chart edges,
+	 * otherwise the polygon diagonal streaks across empty space. */
+	var area = pts.slice();
+	area.push(xs[xs.length - 1].toFixed(1) + ',' + (padT + innerH));
+	area.unshift(xs[0].toFixed(1) + ',' + (padT + innerH));
+
+	var gridStyle = 'stroke:var(--ds-border);stroke-width:1;stroke-dasharray:3 3';
+	var lblStyle = 'fill:var(--ds-text-muted);font-size:9px;font-family:var(--ds-mono)';
+	var last = pts[pts.length - 1].split(',');
+	return svgEl('svg', {
+		'viewBox': '0 0 ' + W + ' ' + H,
+		'width': '100%', 'height': H,
+		'style': 'display:block',
+		'role': 'img', 'aria-label': _('Frequency History')
+	}, [
+		svgEl('line', { 'x1': padX, 'y1': padT, 'x2': W - padX, 'y2': padT, 'style': gridStyle }),
+		svgEl('line', { 'x1': padX, 'y1': padT + innerH, 'x2': W - padX, 'y2': padT + innerH, 'style': gridStyle }),
+		svgEl('text', { 'x': padX + 2, 'y': padT - 4, 'style': lblStyle }, [ document.createTextNode(aui.fmtFreq(hi)) ]),
+		svgEl('text', { 'x': padX + 2, 'y': padT + innerH - 4, 'style': lblStyle }, [ document.createTextNode(aui.fmtFreq(lo)) ]),
+		svgEl('polygon', { 'points': area.join(' '), 'style': 'fill:var(--ds-ok);opacity:.12;stroke:none' }),
+		svgEl('polyline', {
+			'points': pts.join(' '),
+			'style': 'fill:none;stroke:var(--ds-ok);stroke-width:2;stroke-linejoin:round;stroke-linecap:round'
+		}),
+		svgEl('circle', { 'cx': last[0], 'cy': last[1], 'r': '3', 'style': 'fill:var(--ds-ok)' })
+	]);
 }
 
 /* ── CPU control settings (governor / max freq + save) ── */
@@ -831,18 +894,21 @@ return view.extend({
 			}),
 
 		// CPU Frequency
-			aui.section({
-				title: _('CPU Frequency'),
-				body: E('div', {}, [
-					E('div', { 'class': 'ai-grid ai-grid--2' }, [
-						E('div', { 'id': 'cpu-info-content' }, [ renderCpuInfo(st) ]),
-						E('div', { 'id': 'cpu-freq-card' }, [ renderFreqCard(st) ])
-					]),
-					E('div', { 'class': 'ai-grid', 'style': 'margin-top:var(--ds-sp-2)' }, [
-						aui.card({ name: _('Control Settings'), accent: 'var(--ai-npu)', body: E('div', { 'id': 'cpu-control-content' }, [ renderControlSettings(st) ]) })
+				aui.section({
+					title: _('CPU Frequency'),
+					body: E('div', {}, [
+						E('div', { 'class': 'ai-grid ai-grid--2' }, [
+							E('div', { 'id': 'cpu-info-content' }, [ renderCpuInfo(st) ]),
+							E('div', { 'id': 'cpu-freq-card' }, [ renderFreqCard(st) ])
+						]),
+						E('div', { 'class': 'ai-grid', 'style': 'margin-top:var(--ds-sp-2)' }, [
+							aui.card({
+								name: _('Frequency History'), accent: 'var(--ai-npu)',
+								body: E('div', { 'id': 'cpu-history-content' }, [ renderFreqChart(st.cpu_min_freq, st.cpu_max_freq) ])
+							})
+						])
 					])
-				])
-			}),
+				}),
 
 			// NPU and hardware offload controls/status.
 			aui.section({
@@ -910,10 +976,10 @@ return view.extend({
 				var ci = document.getElementById('cpu-info-content');
 				if (ci) { ci.innerHTML = ''; ci.appendChild(renderCpuInfo(st)); }
 
-				// Freq card — always rebuild so the live range never retains its
-				// first-render N/A value.
-				var fc = document.getElementById('cpu-freq-card');
-				if (fc) { fc.innerHTML = ''; fc.appendChild(renderFreqCard(st)); }
+				// History chart — append one sample per poll and re-render.
+				pushFreqSample(freqState(st).freq);
+				var hc = document.getElementById('cpu-history-content');
+				if (hc) { hc.innerHTML = ''; hc.appendChild(renderFreqChart(st.cpu_min_freq, st.cpu_max_freq, hc.clientWidth)); }
 
 				// Control settings — the selects now always exist, so their presence can
 				// no longer signal "not rendered yet". Rebuild the container whenever the

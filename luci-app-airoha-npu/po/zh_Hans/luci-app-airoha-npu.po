@@ -69,11 +69,8 @@ msgstr "已绑定 / PPE 总表项"
 msgid "CPU model / temperature"
 msgstr "CPU 型号 / 温度"
 
-msgid "CPU freq / PLL"
-msgstr "CPU 频率 / PLL"
-
-msgid "Current frequency (cpuinfo_cur_freq)"
-msgstr "当前频率（cpuinfo_cur_freq）"
+msgid "CPU Control"
+msgstr "CPU控制"
 
 msgid "VLAN passthrough"
 msgstr "VLAN 包直通桥转发"
@@ -168,17 +165,14 @@ msgstr "客户端"
 msgid "Conflicts & Alerts"
 msgstr "冲突与告警"
 
-msgid "Control Settings"
-msgstr "CPU控制设置"
+msgid "Frequency History"
+msgstr "频率历史"
 
 msgid "Core Count"
 msgstr "核心数量"
 
 msgid "Critical"
 msgstr "危险"
-
-msgid "Current Frequency"
-msgstr "当前频率"
 
 msgid "DETECTING"
 msgstr "探测中"
@@ -242,9 +236,6 @@ msgstr "转发状态迁移"
 
 msgid "Frequency"
 msgstr "频率"
-
-msgid "Frequency Range"
-msgstr "频率范围"
 
 msgid "Ghost Shaper Active"
 msgstr "Ghost Shaper 活动"

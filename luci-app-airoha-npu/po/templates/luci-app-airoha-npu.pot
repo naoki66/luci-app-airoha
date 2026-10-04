@@ -64,10 +64,7 @@ msgstr ""
 msgid "CPU model / temperature"
 msgstr ""
 
-msgid "CPU freq / PLL"
-msgstr ""
-
-msgid "Current frequency (cpuinfo_cur_freq)"
+msgid "CPU Control"
 msgstr ""
 
 msgid "VLAN passthrough"
@@ -163,16 +160,13 @@ msgstr ""
 msgid "Conflicts & Alerts"
 msgstr ""
 
-msgid "Control Settings"
+msgid "Frequency History"
 msgstr ""
 
 msgid "Core Count"
 msgstr ""
 
 msgid "Critical"
-msgstr ""
-
-msgid "Current Frequency"
 msgstr ""
 
 msgid "DETECTING"
@@ -236,9 +230,6 @@ msgid "Forward transitions"
 msgstr ""
 
 msgid "Frequency"
-msgstr ""
-
-msgid "Frequency Range"
 msgstr ""
 
 msgid "Ghost Shaper Active"
