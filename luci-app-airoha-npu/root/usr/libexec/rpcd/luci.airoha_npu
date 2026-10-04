@@ -59,9 +59,10 @@ _find_cpufreq_policy() {
 	return 1
 }
 
-# Keep the UI and every runtime control path at the validated 1.2 GHz ceiling.
-# Some firmware exposes higher OPPs, but selecting them is not supported here.
-CPU_MAX_FREQ_KHZ=1200000
+# Keep the UI and every runtime control path within the supported 500-1400 MHz
+# operating range. The packaged default remains 1200 MHz below.
+CPU_MIN_FREQ_KHZ=500000
+CPU_MAX_FREQ_KHZ=1400000
 
 _cpu_frequencies() {
 	local dir="$1" freq values
@@ -76,7 +77,7 @@ $(cat "$dir/cpuinfo_max_freq" 2>/dev/null)"
 
 	for freq in $values; do
 		case "$freq" in ''|*[!0-9]*) continue ;; esac
-		[ "$freq" -gt 0 ] 2>/dev/null || continue
+		[ "$freq" -ge "$CPU_MIN_FREQ_KHZ" ] 2>/dev/null || continue
 		[ "$freq" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null || continue
 		printf '%s\n' "$freq"
 	done | sort -n -u
@@ -86,6 +87,7 @@ _cpu_freq_allowed() {
 	local dir="$1" freq="$2"
 
 	case "$freq" in ''|*[!0-9]*) return 1 ;; esac
+	[ "$freq" -ge "$CPU_MIN_FREQ_KHZ" ] 2>/dev/null || return 1
 	[ "$freq" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null || return 1
 	_cpu_frequencies "$dir" | grep -qx "$freq"
 }

@@ -11,7 +11,9 @@
 START=89
 
 CPUFREQ_ROOT=/sys/devices/system/cpu/cpufreq
-CPU_MAX_FREQ_KHZ=1200000
+# The board supports 500-1400 MHz; keep the default selection at 1200 MHz.
+CPU_MIN_FREQ_KHZ=500000
+CPU_MAX_FREQ_KHZ=1400000
 CPU_DEFAULT_GOVERNOR=ondemand
 CPU_DEFAULT_MAX_FREQ_KHZ=1200000
 
@@ -40,6 +42,7 @@ freq_allowed() {
 	local dir="$1" freq="$2" value values
 
 	case "$freq" in ''|*[!0-9]*) return 1 ;; esac
+	[ "$freq" -ge "$CPU_MIN_FREQ_KHZ" ] 2>/dev/null || return 1
 	[ "$freq" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null || return 1
 	values=$(freq_values "$dir")
 	for value in $values; do
@@ -69,12 +72,11 @@ apply_cpu_settings() {
 	[ -n "$governor" ] || governor="$CPU_DEFAULT_GOVERNOR"
 	[ -n "$max_freq" ] || max_freq="$CPU_DEFAULT_MAX_FREQ_KHZ"
 
-	# Do not leave an old 1.4 GHz value active when an older config is found.
-	# Fall back to the highest kernel-advertised OPP at or below 1.2 GHz.
+	# Fall back to the highest kernel-advertised OPP within the supported range.
 	if ! freq_allowed "$sys_dir" "$max_freq"; then
 		max_freq=""
 		for value in $(freq_values "$sys_dir" | tr ' ' '\n' | sort -n); do
-			if [ "$value" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null; then
+			if [ "$value" -ge "$CPU_MIN_FREQ_KHZ" ] 2>/dev/null && [ "$value" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null; then
 				max_freq="$value"
 			fi
 		done
