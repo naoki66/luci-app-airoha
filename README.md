@@ -1,4 +1,4 @@
-# luci-app-airoha-npu
+# luci-app-airoha
 
 Standalone LuCI feed for Airoha/Gemtek firmware builds.
 
