@@ -48,6 +48,15 @@ freq_allowed() {
 	return 1
 }
 
+governor_allowed() {
+	local dir="$1" governor value
+	governor="$2"
+	for value in $(cat "$dir/scaling_available_governors" 2>/dev/null); do
+		[ "$value" = "$governor" ] && return 0
+	done
+	return 1
+}
+
 apply_cpu_settings() {
 	local governor max_freq sys_dir
 
@@ -74,8 +83,8 @@ apply_cpu_settings() {
 
 	[ -w "$sys_dir/scaling_max_freq" ] && echo "$max_freq" > "$sys_dir/scaling_max_freq" 2>/dev/null
 
-	[ -w "$sys_dir/scaling_governor" ] && {
-		if echo "$governor" | grep -qw "$(cat "$sys_dir/scaling_available_governors" 2>/dev/null)"; then
+	[ -n "$governor" ] && [ -w "$sys_dir/scaling_governor" ] && {
+		if governor_allowed "$sys_dir" "$governor"; then
 			echo "$governor" > "$sys_dir/scaling_governor" 2>/dev/null
 		fi
 	}

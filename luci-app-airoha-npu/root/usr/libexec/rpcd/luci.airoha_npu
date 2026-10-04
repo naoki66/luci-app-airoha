@@ -90,6 +90,15 @@ _cpu_freq_allowed() {
 	_cpu_frequencies "$dir" | grep -qx "$freq"
 }
 
+_cpu_governor_allowed() {
+	local dir="$1" governor value
+	governor="$2"
+	for value in $(cat "$dir/scaling_available_governors" 2>/dev/null); do
+		[ "$value" = "$governor" ] && return 0
+	done
+	return 1
+}
+
 get_status() {
 	# === NPU Status ===
 	local npu_ver=$(airoha_npu_version)
@@ -337,7 +346,7 @@ set_governor() {
 
 	# Validate governor is available
 	avail=$(cat "$cpufreq_path/scaling_available_governors" 2>/dev/null)
-	if ! echo "$avail" | grep -qw "$governor"; then
+	if ! _cpu_governor_allowed "$cpufreq_path" "$governor"; then
 		printf '{"error":"invalid governor: %s"}' "$governor"
 		return
 	fi
@@ -412,7 +421,7 @@ set_cpu_settings() {
 
 	if [ -n "$governor" ]; then
 		avail_g=$(cat "$cpufreq_path/scaling_available_governors" 2>/dev/null)
-		if ! echo "$avail_g" | grep -qw "$governor"; then
+		if ! _cpu_governor_allowed "$cpufreq_path" "$governor"; then
 			printf '{"error":"invalid governor: %s"}' "$governor"
 			return
 		fi
