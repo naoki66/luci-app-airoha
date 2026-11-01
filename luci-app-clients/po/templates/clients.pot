@@ -15,16 +15,10 @@ msgstr ""
 msgid "LAN clients"
 msgstr ""
 
-msgid "DNS records"
-msgstr ""
-
 msgid "Overview"
 msgstr ""
 
 msgid "Devices"
-msgstr ""
-
-msgid "DNS"
 msgstr ""
 
 msgid "State"
@@ -177,11 +171,7 @@ msgstr ""
 msgid "Realtime traffic trends"
 msgstr ""
 
-msgid "Select device"
-msgstr ""
 
-msgid "All devices"
-msgstr ""
 
 msgid "Type"
 msgstr ""
@@ -214,84 +204,6 @@ msgid "No samples yet. The chart appears as soon as the background collector rec
 msgstr ""
 
 msgid "Traffic counted by the background collector since it started. conntrack counters belong to a flow, so the figure is a floor, not a lifetime total."
-msgstr ""
-
-msgid "DNS query records"
-msgstr ""
-
-msgid "Every DNS lookup dnsmasq answered, with the device that asked and the server it was forwarded to."
-msgstr ""
-
-msgid "Time"
-msgstr ""
-
-msgid "Domain"
-msgstr ""
-
-msgid "Query type"
-msgstr ""
-
-msgid "Query"
-msgstr ""
-
-msgid "Response"
-msgstr ""
-
-msgid "Response time"
-msgstr ""
-
-msgid "Device"
-msgstr ""
-
-msgid "DNS server"
-msgstr ""
-
-msgid "Response result"
-msgstr ""
-
-msgid "All"
-msgstr ""
-
-msgid "Search domain"
-msgstr ""
-
-msgid "Search device"
-msgstr ""
-
-msgid "Search server"
-msgstr ""
-
-msgid "Per page"
-msgstr ""
-
-msgid "Previous"
-msgstr ""
-
-msgid "Next"
-msgstr ""
-
-msgid "Page %d of %d, %d records"
-msgstr ""
-
-msgid "%d records"
-msgstr ""
-
-msgid "No DNS records match the current filters."
-msgstr ""
-
-msgid "%d ms"
-msgstr ""
-
-msgid "%d s"
-msgstr ""
-
-msgid "dnsmasq logs whole seconds; sub-second times cannot be resolved"
-msgstr ""
-
-msgid "A query and its response are two rows, joined by the query id dnsmasq assigns. A query without a response is one that never got an answer."
-msgstr ""
-
-msgid "Records are kept in memory and reset when the device reboots. Logging every query costs a little CPU on a busy resolver; it can be switched off under DHCP/DNS settings."
 msgstr ""
 
 msgid "This month"

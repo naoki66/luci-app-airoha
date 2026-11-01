@@ -32,22 +32,13 @@ config clients 'global'
 	# chart, in /tmp like the rest.
 	option samples_path '/tmp/clients-samples.json'
 	# Ceiling in bytes for each cache file this app keeps in /tmp (history,
-	# snapshot, DNS archive, snoop table, PTR cache). A file that grows past
+	# snapshot, snoop table, PTR cache). A file that grows past
 	# it drops its least useful rows before being written, so the worst case
 	# is a constant rather than a function of how busy the network was. 256 KB
 	# is several times what a /24 of real clients needs. Zero or an unreadable
 	# value falls back to the built-in 262144 - there is no way to switch the
 	# cap off from here.
 	option max_bytes '262144'
-
-config clients 'dns'
-	# Turning this off stops the collector but keeps the dnsmasq query log
-	# setting as the package installed it. The DNS tab then shows whatever was
-	# archived and no longer grows.
-	option enabled '1'
-	# Ten seconds: the page is a record of what happened, not a live socket
-	# view, and the collector parses only what was appended since last time.
-	option interval '10'
 
 config clients 'snoop'
 	# Passive listening on the LAN bridge: DHCPACK assignments and IPv6

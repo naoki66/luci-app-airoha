@@ -1,19 +1,18 @@
 # luci-app-clients
 
 One LuCI application for everything the router knows about the stations on its
-network: addresses, per-device WAN traffic, the wireless association each
-station had, and the DNS lookups it made.
+network: addresses, per-device WAN traffic, and the wireless association each
+station had.
 
 Menu entry: **Status → Net Clients** (`admin/status/clients`), sitting right
 after Airoha Soc (`order` 16).
 
-Three tabs:
+Two tabs:
 
 | Tab | Answers |
 |---|---|
 | **Overview** | How much total traffic, plus a live trend chart |
 | **Devices** | One row per client: addresses with their source, network, WAN rate, connections, last seen (the Signal column only appears on devices with radios) |
-| **DNS** | Every lookup dnsmasq answered, with the device that asked and the server it went to |
 
 ## Dependencies
 
@@ -21,7 +20,7 @@ Declared in the Makefile, so a normal install pulls them in:
 
 | Package | Why |
 |---|---|
-| `ucode`, `ucode-mod-fs`, `ucode-mod-ubus` | the two collector scripts |
+| `ucode`, `ucode-mod-fs`, `ucode-mod-ubus` | `clients-probe` and `clients-snoop` |
 | `rpcd-mod-iwinfo` | the `iwinfo` ubus object the probe calls for association data |
 
 The vendor-icon bundle (`htdocs/.../resources/clients-oui/`, 501 KB, 67 files)
@@ -31,7 +30,7 @@ not installed.
 
 ## Where the data comes from
 
-Two collectors run on a timer and write to `/tmp`. The pages read those files;
+The collectors run on a timer and write to `/tmp`. The pages read those files;
 nothing here starts a measurement, and nothing polls a daemon over a socket.
 
 | Source | Provides | Written by |
@@ -43,7 +42,6 @@ nothing here starts a measurement, and nothing polls a daemon over a socket.
 | live snapshot | everything above, with the counters already turned into rates and running totals | `clients-probe collect`, every 10 s |
 | fast ring | the four overview tile figures, on their own cheaper clock | `clients-probe loop`, every 1 s |
 | archive | first / last seen, last known association and name | `clients-probe collect`, every 30 s |
-| dnsmasq query log | DNS records with response time and result | `clients-dns collect`, every 10 s |
 | nftables bridge counter | traffic between two clients of the same subnet, which nothing else sees | `clients-probe intra-setup`, once at service start |
 
 The sampling clock belongs to the collector, not to the browser: every pass
@@ -265,16 +263,12 @@ the question the table asks, and one fewer background counter is one fewer
 thing to configure. `nlbwmon` is no longer a dependency; the `clients-probe
 nlbw` query path is still present on the backend but nothing calls it.
 
-## Two limits worth knowing
+## One limit worth knowing
 
-1. **The running totals are floors, not lifetime totals.** conntrack counters
-   belong to a flow; when the flow is reaped, its bytes leave the table with it.
-   The rate is accurate, the accumulated figure is "what the collector has seen
-   since it started" - it survives a page reload, not a reboot.
-2. **DNS records live in memory.** They survive a page reload but not a reboot.
-   Logging every query costs a little CPU on a busy resolver. The package turns
-   `log-queries` on at install time; `clients.dns.enabled=0` stops the collector
-   without touching the dnsmasq setting.
+**The running totals are floors, not lifetime totals.** conntrack counters
+belong to a flow; when the flow is reaped, its bytes leave the table with it.
+The rate is accurate, the accumulated figure is "what the collector has seen
+since it started" - it survives a page reload, not a reboot.
 
 ## Configuration
 
@@ -291,8 +285,6 @@ nlbw` query path is still present on the backend but nothing calls it.
 | `clients.global.tick_interval` | `1` | seconds between tile measurements; `0` switches the fast ring off |
 | `clients.global.samples_path` | `/tmp/clients-samples.json` | location of the fast ring |
 | `clients.global.max_bytes` | `262144` | byte ceiling per cache file |
-| `clients.dns.enabled` | `1` | DNS collector on/off |
-| `clients.dns.interval` | `10` | seconds between log passes |
 | `clients.snoop.enabled` | `1` | passive bridge listening on/off |
 
 Every cache defaults to `/tmp` deliberately: a status page must not wear the
@@ -301,17 +293,16 @@ reboot - and update `acl.d/luci-app-clients.json` to match the new paths.
 
 ## Space used in /tmp
 
-`/tmp` is RAM, so the six files this package keeps there are all capped:
+`/tmp` is RAM, so the five files this package keeps there are all capped:
 `clients-history.json`, `clients-snapshot.json`, `clients-samples.json`,
-`clients-dns.json`, `clients-snoop.json` and `clients-ptr.json`. A document that
-would exceed `max_bytes` gives up rows before it is written - rates first, then
-the snooped hints, then whole client rows, the archive's oldest entries, and the
-DNS archive's oldest records - so the worst case is `max_bytes` per file instead
-of a function of how many addresses the network handed out. The ceiling is **per
-file**, so the hard worst case is six times `max_bytes` (1.5 MiB at the default)
-even though a real network never gets close: measured on a `/24` under normal use
-the files total 270-290 KiB, most of it the DNS archive sitting just under its
-own 256 KiB.
+`clients-snoop.json` and `clients-ptr.json`. A document that would exceed
+`max_bytes` gives up rows before it is written - rates first, then the snooped
+hints, then whole client rows, then the archive's oldest entries - so the worst
+case is `max_bytes` per file instead of a function of how many addresses the
+network handed out. The ceiling is **per file**, so the hard worst case is five
+times `max_bytes` (1.25 MiB at the default) even though a real network never
+gets close: measured on a `/24` under normal use the files total well under
+100 KiB.
 
 The fast ring is the smallest of them - 180 rows of eight numbers is about 8 KiB
 with its bookkeeping, rewritten every two seconds.
@@ -324,12 +315,16 @@ first the per-device table is dropped, then the oldest points.
 `clients-probe status` prints the size of each file and whether any of them is
 over the ceiling, which is the cheapest way to check the cap from the outside.
 
-## A note on dnsmasq
+## A note on dnsmasq (why this package stays out of it)
 
-OpenWrt ships `log-facility=/dev/null` inside `/etc/dnsmasq.conf`. A second
-`log-facility` from UCI aborts dnsmasq startup with *illegal repeated keyword*,
-which takes DNS down for the whole LAN. The postinst comments that line out and
-lets UCI own the path; prerm puts it back.
+Earlier versions parsed dnsmasq's query log to build a DNS tab. That required
+`log-queries=1` plus `log-facility=/tmp/dnsmasq.log` in UCI, and OpenWrt's stock
+`/etc/dnsmasq.conf` ships its own `log-facility` line - two of them abort
+dnsmasq startup with *illegal repeated keyword* on 2.93+, which takes DNS and
+DHCP down for the whole LAN. The DNS tab and the collector are gone, and this
+package no longer writes to dnsmasq's configuration at all: `postinst` removes
+the two UCI options if an older version left them behind and restores the stock
+`log-facility` line if it was commented out.
 
 ## Licence
 

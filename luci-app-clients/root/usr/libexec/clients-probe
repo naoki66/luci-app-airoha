@@ -127,7 +127,6 @@ const DEFAULT_HISTORY = '/tmp/clients-history.json';
 const DEFAULT_SNAPSHOT = '/tmp/clients-snapshot.json';
 const DEFAULT_SAMPLES = '/tmp/clients-samples.json';
 const SNOOP_FILE = '/tmp/clients-snoop.json';
-const DNS_FILE = '/tmp/clients-dns.json';
 
 /* Every writer is capped in bytes, not only in rows. /tmp is RAM, so the worst
  * case has to be a constant that was chosen, not a function of how many
@@ -3188,7 +3187,7 @@ if (length(ARGV)) {
 		let max_bytes = number_arg(ARGV[3], DEFAULT_MAX_BYTES);
 
 		result = history_status(path);
-		result.cache = file_report([ path, cache, DEFAULT_SAMPLES, SNOOP_FILE, PTR_CACHE, DNS_FILE ], max_bytes);
+		result.cache = file_report([ path, cache, DEFAULT_SAMPLES, SNOOP_FILE, PTR_CACHE ], max_bytes);
 
 		/* Reported from the snapshot instead of asking nft again: the figure
 		 * the page shows is the one in that file, and status is meant to be a

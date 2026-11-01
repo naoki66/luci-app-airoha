@@ -8,13 +8,12 @@
 'require view.status.clients.common as common';
 'require view.status.clients.overview as overviewView';
 'require view.status.clients.devices as devicesView';
-'require view.status.clients.dns as dnsView';
 
 /*
- * Net Clients - one page, three tabs.
+ * Net Clients - one page, two tabs.
  *
  * The page itself owns nothing but the tab frame: the data, the polling and
- * the per-tab state stay inside the three sub-views, which are required as
+ * the per-tab state stay inside the two sub-views, which are required as
  * LuCI modules and mounted into their panes on first activation. A tab that
  * is not on screen gets `hidden = true` on its instance, and every sub-view
  * checks that flag at the top of its poll callback - so exactly one tab is
@@ -33,8 +32,7 @@
 
 var TABS = [
 	{ name: 'overview', label: _('Overview'), view: overviewView, title: _('Net Clients') + ' - ' + _('Overview') },
-	{ name: 'devices',  label: _('LAN clients'), view: devicesView,  title: _('Net Clients') + ' - ' + _('LAN clients') },
-	{ name: 'dns',      label: _('DNS records'), view: dnsView,      title: _('Net Clients') + ' - ' + _('DNS records') }
+	{ name: 'devices',  label: _('LAN clients'), view: devicesView,  title: _('Net Clients') + ' - ' + _('LAN clients') }
 ];
 
 function tabDef(name) {

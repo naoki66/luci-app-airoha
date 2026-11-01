@@ -14,17 +14,11 @@ msgstr "网络终端"
 msgid "LAN clients"
 msgstr "局域网终端"
 
-msgid "DNS records"
-msgstr "DNS查询记录"
-
 msgid "Overview"
 msgstr "概览"
 
 msgid "Devices"
 msgstr "设备"
-
-msgid "DNS"
-msgstr "DNS"
 
 msgid "State"
 msgstr "状态"
@@ -208,84 +202,6 @@ msgstr "暂无采样数据，后台采集器记录一条后曲线即会出现。
 
 msgid "Traffic counted by the background collector since it started. conntrack counters belong to a flow, so the figure is a floor, not a lifetime total."
 msgstr "后台采集器启动以来累计的流量。conntrack 计数属于具体连接，因此只是下界，并非累计总量。"
-
-msgid "DNS query records"
-msgstr "DNS 查询记录"
-
-msgid "Every DNS lookup dnsmasq answered, with the device that asked and the server it was forwarded to."
-msgstr "dnsmasq 应答的每次 DNS 查询，含发起设备与转发到的服务器。"
-
-msgid "Time"
-msgstr "时间"
-
-msgid "Domain"
-msgstr "域名"
-
-msgid "Query type"
-msgstr "查询类型"
-
-msgid "Query"
-msgstr "查询"
-
-msgid "Response"
-msgstr "响应"
-
-msgid "Response time"
-msgstr "响应时间"
-
-msgid "Device"
-msgstr "设备"
-
-msgid "DNS server"
-msgstr "DNS 服务器"
-
-msgid "Response result"
-msgstr "响应结果"
-
-msgid "All"
-msgstr "全部"
-
-msgid "Search domain"
-msgstr "搜索域名"
-
-msgid "Search device"
-msgstr "搜索设备"
-
-msgid "Search server"
-msgstr "搜索服务器"
-
-msgid "Per page"
-msgstr "每页"
-
-msgid "Previous"
-msgstr "上一页"
-
-msgid "Next"
-msgstr "下一页"
-
-msgid "Page %d of %d, %d records"
-msgstr "第 %d 页，共 %d 页，%d 条记录"
-
-msgid "%d records"
-msgstr "%d 条记录"
-
-msgid "No DNS records match the current filters."
-msgstr "没有符合当前筛选条件的 DNS 记录。"
-
-msgid "%d ms"
-msgstr "%d 毫秒"
-
-msgid "%d s"
-msgstr "%d 秒"
-
-msgid "dnsmasq logs whole seconds; sub-second times cannot be resolved"
-msgstr "dnsmasq 只记录整秒，无法解析亚秒级耗时"
-
-msgid "A query and its response are two rows, joined by the query id dnsmasq assigns. A query without a response is one that never got an answer."
-msgstr "一次查询与其响应为两行，由 dnsmasq 分配的查询 ID 关联。只有查询而无响应的，表示该查询未获应答。"
-
-msgid "Records are kept in memory and reset when the device reboots. Logging every query costs a little CPU on a busy resolver; it can be switched off under DHCP/DNS settings."
-msgstr "记录保存在内存中，设备重启后清空。在繁忙的解析器上记录每次查询会带来少量 CPU 开销，可在 DHCP/DNS 设置中关闭。"
 
 msgid "This month"
 msgstr "本月"

@@ -1,6 +1,6 @@
 {
 	"luci-app-clients": {
-		"description": "Grant access to the client list, its traffic counters, the wireless association history and the DNS query archive",
+		"description": "Grant access to the client list, its traffic counters and the wireless association history",
 		"read": {
 			"cgi-io": [ "exec" ],
 			"uci": [ "dhcp", "clients" ],
@@ -13,12 +13,9 @@
 				"/usr/libexec/clients-probe": [ "exec" ],
 				"/usr/libexec/clients-probe read *": [ "exec" ],
 				"/usr/libexec/clients-probe status *": [ "exec" ],
-				"/usr/libexec/clients-dns read": [ "exec" ],
-				"/usr/libexec/clients-dns status": [ "exec" ],
 				"/tmp/clients-history.json": [ "read" ],
 				"/tmp/clients-snapshot.json": [ "read" ],
-				"/tmp/clients-samples.json": [ "read" ],
-				"/tmp/clients-dns.json": [ "read" ]
+				"/tmp/clients-samples.json": [ "read" ]
 			}
 		},
 		"write": {
@@ -27,9 +24,7 @@
 			},
 			"file": {
 				"/usr/libexec/clients-probe clear *": [ "exec" ],
-				"/usr/libexec/clients-probe collect *": [ "exec" ],
-				"/usr/libexec/clients-dns clear": [ "exec" ],
-				"/usr/libexec/clients-dns collect": [ "exec" ]
+				"/usr/libexec/clients-probe collect *": [ "exec" ]
 			}
 		}
 	}

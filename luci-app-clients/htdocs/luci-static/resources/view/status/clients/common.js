@@ -10,8 +10,8 @@
 /*
  * Shared core of the Clients pages.
  *
- * Three views - overview, devices, DNS - read the same files and merge the same
- * three sources, so the merge lives here once:
+ * Both views - overview and devices - read the same files and merge the same
+ * sources, so the merge lives here once:
  *
  *   snapshot    /tmp/clients-snapshot.json     (init)    addresses, rates, wifi
  *   archive     /tmp/clients-history.json      (init)    first / last seen
@@ -37,7 +37,6 @@ var PROBE = '/usr/libexec/clients-probe';
 var SNAPSHOT_PATH = '/tmp/clients-snapshot.json';
 var SAMPLES_PATH = '/tmp/clients-samples.json';
 var HISTORY_PATH = '/tmp/clients-history.json';
-var DNS_ARCHIVE = '/tmp/clients-dns.json';
 var STYLESHEET = 'view/status/clients/clients.css';
 
 /* How often the page reads the snapshot, not how often it is taken. Five
@@ -1740,7 +1739,6 @@ var Common = L.Class.extend({
 	SNAPSHOT_PATH: SNAPSHOT_PATH,
 	SAMPLES_PATH: SAMPLES_PATH,
 	HISTORY_PATH: HISTORY_PATH,
-	DNS_ARCHIVE: DNS_ARCHIVE,
 	STYLESHEET: STYLESHEET,
 	SAMPLE_INTERVAL: SAMPLE_INTERVAL,
 	TICK_INTERVAL: TICK_INTERVAL,

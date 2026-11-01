@@ -234,20 +234,6 @@ html[data-argon-mode="dark"] {
 .clients-chart__key--up::before { background: var(--cl-up); }
 .clients-chart__key--down::before { background: var(--cl-down); }
 
-/* ---------------- filters ---------------- */
-
-.clients-filters {
-	display: flex;
-	align-items: flex-end;
-	flex-wrap: wrap;
-	gap: .75rem;
-	margin-bottom: .85rem;
-}
-
-.clients-filters .clients-control input {
-	min-width: 11rem;
-}
-
 /* ---------------- table ---------------- */
 
 .clients-wrap {
@@ -545,95 +531,6 @@ table.clients td.clients__ctr {
 
 .clients__state--up { background: #22c55e; }
 .clients__state--down { background: #ef4444; }
-
-/* ---------------- DNS table ---------------- */
-
-table.clients-dns {
-	min-width: 70rem;
-}
-
-table.clients-dns thead th {
-	cursor: default;
-}
-
-.clients-dns__time {
-	font-family: var(--font-mono, monospace);
-	font-size: .74rem;
-	color: var(--cl-muted);
-	white-space: nowrap;
-}
-
-.clients-dns__domain {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.clients-dns__qtype {
-	font-family: var(--font-mono, monospace);
-	font-size: .74rem;
-	color: var(--cl-muted);
-}
-
-.clients-dns__device,
-.clients-dns__server {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-size: .76rem;
-}
-
-.clients-dns__results {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.clients-dns__result {
-	font-family: var(--font-mono, monospace);
-	font-size: .74rem;
-}
-
-/* The query row is the quieter half of a pair: the response carries the answer,
- * and giving both the same weight doubles the visual noise of every lookup. */
-table.clients-dns tr.clients-dns__query-row td {
-	color: var(--cl-muted);
-}
-
-.clients-dns__kind {
-	display: inline-block;
-	font-size: .64rem;
-	font-weight: 500;
-	line-height: 1;
-	padding: .2rem .34rem;
-	border-radius: 3px;
-	border: 1px solid currentColor;
-	white-space: nowrap;
-}
-
-.clients-dns__kind--query { color: var(--cl-ip6-dhcpv6); }
-.clients-dns__kind--response { color: var(--cl-ip4-dhcp); }
-
-/* ---------------- pager ---------------- */
-
-.clients-pager {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	flex-wrap: wrap;
-	gap: .5rem;
-	margin-top: .75rem;
-}
-
-.clients-pager__info {
-	font-size: .75rem;
-	color: var(--cl-muted);
-}
-
-.clients-pager__buttons {
-	display: flex;
-	gap: .35rem;
-}
 
 /* ---------------- footer ---------------- */
 
