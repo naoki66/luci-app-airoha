@@ -1,12 +1,12 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * Styling for the three Clients views (overview, devices, DNS).
+ * Styling for the two Clients views (overview, devices).
  *
  * The theme owns the palette, the type scale and the card styling, so this file
  * adds only what the theme does not ship: a dense table that survives eleven
- * facts per row, the three assignment-source colour bars, the traffic blocks,
- * the trend chart frame and the DNS badges. Everything reads its colours from
+ * facts per row, the three assignment-source colour bars, the traffic blocks
+ * and the trend chart frame. Everything reads its colours from
  * the --cl-* tokens declared once per mode below.
  *
  * The mode comes from the theme, not from the browser: luci-theme-argon stamps
