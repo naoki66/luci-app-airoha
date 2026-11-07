@@ -180,13 +180,15 @@ var COMPONENT_CSS = `
 .fan-temp-value{font-family:var(--fan-font-mono);font-size:16px;font-variant-numeric:tabular-nums;font-weight:500;color:var(--fan-text)}
 .fan-temp-track{position:relative;height:12px;border-radius:var(--fan-r-pill);overflow:hidden;background:var(--fan-track)}
 .fan-temp-fill{height:100%;border-radius:inherit;background:var(--fan-level);transition:width .3s,background .3s}
-.fan-temp-tick{position:absolute;top:0;bottom:0;width:1px;background:var(--fan-surface);opacity:.85}
-.fan-temp-tick[data-threshold]{width:2px;opacity:1}
+/* Threshold marks live OUTSIDE the bar: a 3px hairline in the gap under the
+ * track. Inside-bar surface-coloured ticks cut the fill into segments and
+ * read as gaps in the measurement, so the fill is kept as one shape. */
 .fan-temp-scale{position:relative;height:15px;margin-top:4px;font-size:11px;font-family:var(--fan-font-mono);color:var(--fan-muted)}
 .fan-temp-scale span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
 .fan-temp-scale span[data-level="warn"]{color:var(--fan-warn);font-weight:500}
 .fan-temp-scale span[data-level="hot"]{color:var(--fan-hot);font-weight:500}
 .fan-temp-scale span[data-level="error"]{color:var(--fan-error);font-weight:500}
+.fan-temp-scale span[data-level]:before{content:"";position:absolute;top:-4px;left:50%;width:1px;height:3px;background:currentColor;transform:translateX(-50%);opacity:.75}
 .fan-temp-legend{display:flex;align-items:center;flex-wrap:wrap;gap:4px 14px;font-size:11px;color:var(--fan-muted)}
 .fan-temp-legend-item{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .fan-temp-legend-dot{width:8px;height:8px;border-radius:2px;background:var(--fan-level);flex:none}

@@ -214,13 +214,6 @@ function updateSummary(status) {
 	});
 }
 
-function tickElements() {
-	return fanTheme.tempTicks().map(function(threshold) {
-		return E('div', { 'class': 'fan-temp-tick', 'data-threshold': '1',
-			'style': 'left:' + threshold + '%' });
-	});
-}
-
 function scaleElements() {
 	var nodes = [ E('span', {}, '0') ];
 	var levels = [ 'warn', 'hot', 'error' ];
@@ -250,10 +243,12 @@ function tempLegend() {
 
 function createTempGauge(gauge, temp) {
 	var level = fanTheme.tempLevel(temp);
+	/* One continuous fill. Threshold positions are marked by the hairlines
+	 * below the scale, never by lines drawn across the bar. */
 	var trackChildren = [
 		E('div', { 'class': 'fan-temp-fill', 'data-role': 'fill',
 			'style': 'width:' + fanTheme.tempPercent(temp) + '%' })
-	].concat(tickElements());
+	];
 
 	return E('div', { 'id': gauge.id, 'class': 'fan-temp-card', 'data-level': level.key }, [
 		E('div', { 'class': 'fan-temp-row' }, [
