@@ -605,13 +605,28 @@ get_status() {
 	done
 	[ -n "$soc_compat" ] || soc_compat="Unknown"
 
+	# System uptime and load average: two single-file reads, and the two things
+	# the CPU card could not answer - how long this boot has been up, and how
+	# much runnable work the scheduler is holding (1 / 5 / 15 min averages).
+	# /proc/uptime is a float ("1234.56 6789.01"), so only the integer part is
+	# published; the load figures stay a verbatim string because they are
+	# already human-scaled and a busybox printf of a float is not portable.
+	sys_uptime=""
+	[ -r /proc/uptime ] && read -r sys_uptime _ < /proc/uptime
+	sys_uptime=${sys_uptime%%.*}
+	loadavg=""
+	if [ -r /proc/loadavg ]; then
+		read -r _l1 _l2 _l3 _ < /proc/loadavg
+		[ -n "$_l1" ] && loadavg="$_l1 $_l2 $_l3"
+	fi
+
 	# Strings read back from sysfs / /proc / the device tree are escaped: they
 	# are kernel-owned today, but a value carrying a quote or a brace would
 	# otherwise be spliced into the object verbatim.
-	printf '{"npu_version":"%s","npu_loaded":%s,"npu_device":"%s","npu_clock":%d,"npu_cores":%d,"offload_bound":%d,"offload_total":%d,"memory_regions":%s,"cpu_cur_freq":%d,"cpu_hw_freq":%d,"cpu_governor":"%s","cpu_avail_governors":"%s","cpu_min_freq":%d,"cpu_max_freq":%d,"cpu_avail_freqs":"%s","cpu_cpufreq_available":%d,"cpu_cpufreq_reason":"%s","cpu_count":%d,"cpu_ticks":%s,"cpu_history":%s,"cpu_arch":"%s","cpu_temp":"%s","soc_compat":"%s","has_pon":%d}' \
+	printf '{"npu_version":"%s","npu_loaded":%s,"npu_device":"%s","npu_clock":%d,"npu_cores":%d,"offload_bound":%d,"offload_total":%d,"memory_regions":%s,"cpu_cur_freq":%d,"cpu_hw_freq":%d,"cpu_governor":"%s","cpu_avail_governors":"%s","cpu_min_freq":%d,"cpu_max_freq":%d,"cpu_avail_freqs":"%s","cpu_cpufreq_available":%d,"cpu_cpufreq_reason":"%s","cpu_count":%d,"cpu_ticks":%s,"cpu_history":%s,"cpu_arch":"%s","cpu_temp":"%s","soc_compat":"%s","has_pon":%d,"sys_uptime":%d,"loadavg":"%s"}' \
 		"$(_json_escape "${npu_ver:-Unknown}")" "$npu_loaded" "$(_json_escape "${npu_device:-}")" "${npu_clock:-0}" "${npu_cores:-0}" "${offload_bound:-0}" "${offload_total:-0}" "$regions" \
 		"${cpu_cur_freq:-0}" "${cpu_hw_freq:-0}" "$(_json_escape "${cpu_governor:-unknown}")" "$(_json_escape "${cpu_avail_governors:-}")" "${cpu_min_freq:-0}" "${cpu_max_freq:-0}" "${cpu_avail_freqs:-}" "${cpu_cpufreq_available:-0}" "${cpu_cpufreq_reason:-no_cpufreq}" "${cpu_count:-0}" "$cpu_ticks" "$cpu_hist" \
-		"$(_json_escape "${cpu_arch:-}")" "${cpu_temp:-N/A}" "$(_json_escape "${soc_compat:-}")" "${has_pon:-0}"
+		"$(_json_escape "${cpu_arch:-}")" "${cpu_temp:-N/A}" "$(_json_escape "${soc_compat:-}")" "${has_pon:-0}" "${sys_uptime:-0}" "$(_json_escape "${loadavg:-}")"
 }
 
 get_topology() {
