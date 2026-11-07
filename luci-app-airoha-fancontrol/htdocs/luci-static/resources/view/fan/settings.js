@@ -205,8 +205,9 @@ return view.extend({
 		var m, s, o;
 		fanTheme.apply();
 
-		m = new form.Map('fan', null,
-			_('Configure fan control mode and speed curves.'));
+		/* The header below renders the same title block as the status view;
+		 * leaving a description on the Map would show it twice. */
+		m = new form.Map('fan', null, null);
 
 		s = m.section(form.NamedSection, 'settings', 'fancontrol', _('Control Mode'));
 		s.anonymous = true;
@@ -265,6 +266,16 @@ return view.extend({
 
 		return m.render().then(function(node) {
 			node.classList.add('fan-app', 'fan-settings');
+			var header = E('div', { 'class': 'fan-app-header' }, [
+				E('div', {}, [
+					E('h2', {}, _('Fan Control')),
+					E('div', { 'class': 'fan-app-subtitle' },
+						_('Configure fan control mode and speed curves.'))
+				])
+			]);
+			var firstChild = node.children ? node.children[0] : null;
+			if (firstChild) node.insertBefore(header, firstChild);
+			else node.appendChild(header);
 			var sections = node.querySelectorAll('.cbi-section');
 			if (sections[0]) sections[0].classList.add('fan-control-section');
 			if (sections[1]) sections[1].classList.add('fan-curve-section');

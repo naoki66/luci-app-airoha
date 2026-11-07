@@ -96,6 +96,12 @@ var COMPONENT_CSS = `
 .fan-app{box-sizing:border-box;max-width:1180px;margin:0 auto;padding:0 0 var(--fan-sp-6);font-family:var(--fan-font-ui);font-size:13px;line-height:1.5;color:var(--fan-text);-webkit-font-smoothing:antialiased}
 .fan-app *,.fan-app *:before,.fan-app *:after{box-sizing:border-box}
 .fan-app h2,.fan-app h3,.fan-app .cbi-button,.fan-app input,.fan-app select{font-family:var(--fan-font-ui)}
+.fan-app :focus-visible{outline:2px solid var(--fan-info);outline-offset:2px}
+.fan-app .cbi-value-field input:focus-visible,.fan-app .cbi-value-field select:focus-visible{outline:0;box-shadow:0 0 0 3px var(--fan-info-soft)}
+.fan-app .cbi-button:focus-visible{outline:2px solid var(--fan-info);outline-offset:2px}
+.fan-summary-card,.fan-chart-card,.fan-temp-card{transition:border-color .18s,box-shadow .18s}
+.fan-summary-card:hover,.fan-chart-card:hover,.fan-temp-card:hover{box-shadow:0 3px 12px var(--fan-shadow)}
+.fan-app-header h2,.fan-panel-title{letter-spacing:.01em}
 .fan-app [data-level="info"]{--fan-level:var(--fan-info);--fan-level-tint:var(--fan-info-tint);--fan-level-soft:var(--fan-info-soft)}
 .fan-app [data-level="ok"]{--fan-level:var(--fan-ok);--fan-level-tint:var(--fan-ok-tint);--fan-level-soft:var(--fan-ok-soft)}
 .fan-app [data-level="warn"]{--fan-level:var(--fan-warn);--fan-level-tint:var(--fan-warn-tint);--fan-level-soft:var(--fan-warn-soft)}
@@ -214,11 +220,11 @@ var COMPONENT_CSS = `
 .fan-app .fan-curve-section:not(.is-hidden){animation:fan-reveal .18s ease}
 @keyframes fan-reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .fan-app .fan-curve-section .cbi-value.is-focused{box-shadow:0 0 0 2px var(--fan-info-soft)}
-@media(prefers-reduced-motion:reduce){.fan-app .fan-curve-section:not(.is-hidden){animation:none}.fan-temp-fill,.fan-app .cbi-value-field input,.fan-app .cbi-value-field select,.fan-app .cbi-button{transition:none}}
+@media(prefers-reduced-motion:reduce){.fan-app .fan-curve-section:not(.is-hidden){animation:none}.fan-temp-fill,.fan-app .cbi-value-field input,.fan-app .cbi-value-field select,.fan-app .cbi-button,.fan-summary-card,.fan-chart-card,.fan-temp-card{transition:none}.fan-app .cbi-button:hover{transform:none}}
 @media(pointer:coarse){.fan-app .cbi-value-field input,.fan-app .cbi-value-field select,.fan-app .cbi-button{min-height:44px}}
 @media(max-width:1050px){.fan-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}.fan-chart-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.fan-app .fan-curve-section{grid-template-columns:1fr}.fan-app .fan-curve-section>h3,.fan-app .fan-curve-section>.cbi-section-descr,.fan-app .fan-curve-section>.fan-curve-point-head,.fan-app .fan-curve-section>.fan-curve-error{grid-column:auto}}
-@media(max-width:640px){.fan-app{padding-bottom:var(--fan-sp-3)}.fan-app .cbi-section{padding:var(--fan-sp-3);margin:var(--fan-gap-sm) 0!important}.fan-app .cbi-value{display:block;padding:var(--fan-sp-3) 0}.fan-app .cbi-value-title{display:block;margin-bottom:7px}.fan-app .cbi-value-field{margin-left:0!important}.fan-app .fan-curve-section .cbi-value{padding:var(--fan-sp-3)}.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-summary-card{min-height:88px}.fan-chart-canvas{height:112px}.fan-curve-canvas{height:250px}.fan-panel{padding:var(--fan-sp-3)}}`;
+@media(max-width:640px){.fan-app{padding-bottom:var(--fan-sp-3)}.fan-app-header{align-items:flex-start;flex-direction:column;gap:6px}.fan-app-header h2{font-size:20px}.fan-app-meta{width:100%}.fan-app .cbi-section{padding:var(--fan-sp-3);margin:var(--fan-gap-sm) 0!important}.fan-app .cbi-value{display:block;padding:var(--fan-sp-3) 0}.fan-app .cbi-value-title{display:block;margin-bottom:7px}.fan-app .cbi-value-field{margin-left:0!important}.fan-app .fan-curve-section .cbi-value{padding:var(--fan-sp-3)}.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-summary-card{min-height:88px}.fan-chart-canvas{height:112px}.fan-curve-canvas{height:250px}.fan-panel{padding:var(--fan-sp-3)}}`;
 
 var styleEl = null;
 var lastDark = null;
