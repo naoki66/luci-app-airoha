@@ -143,11 +143,16 @@ _cpu_ticks_json() {
 	' /proc/stat 2>/dev/null
 }
 
-# ── History ring buffers (frequency + per-core usage) ──────────────────────
-# The two history charts are backed by bounded FIFO files on tmpfs instead of
-# the browser's sessionStorage: a reload, a second tab, or a tab reopened ten
-# minutes later now all show the same curve, and the per-core utilisation is
+# ── History ring buffer (per-core usage) ──────────────────────────────────
+# The usage chart is backed by a bounded FIFO file on tmpfs instead of the
+# browser's sessionStorage: a reload, a second tab, or a tab reopened ten
+# minutes later all show the same curve, and the per-core utilisation is
 # differentiated once here instead of once per tab.
+#
+# There is deliberately no second (frequency) buffer any more: the boards this
+# app ships on are fixed-clock, so a frequency curve is a horizontal line, and
+# sampling frequency on every poll cost a sysfs read for a picture nobody can
+# act on.
 #
 # Cost per poll: one `date`, one awk for the sample, one awk for the JSON. The
 # sampler counts the lines it has to read anyway (to place the gate), so no
@@ -167,7 +172,6 @@ HIST_TRIM_AT=128        # append up to this many, then trim back to HIST_MAX
 HIST_GATE=8             # minimum seconds between two accepted samples (~10 s)
 HIST_TTL=1800           # samples older than this are not published (30 min)
 HIST_DIR=/tmp
-HIST_FREQ=$HIST_DIR/luci-airoha-npu.cpu.freq.hist
 HIST_LOAD=$HIST_DIR/luci-airoha-npu.cpu.load.hist
 HIST_BASE=$HIST_DIR/luci-airoha-npu.cpu.load.base
 HIST_LOCK=$HIST_DIR/luci-airoha-npu.cpu.hist.lock
@@ -187,11 +191,11 @@ _hist_append() {
 		mv -f "$tmp" "$file" 2>/dev/null || rm -f "$tmp"
 }
 
-# Fold the current frequency and one /proc/stat snapshot into the ring files.
-# Prints "<now> <freq_lines> <load_lines> <old_format>" and then the lines that
-# still have to be appended ("F ..." / "L ..."). The append itself is left to the
-# caller: awk's `print > file` truncates on first use inside one program run, so
-# it can write the new baseline but cannot append a sample.
+# Fold one /proc/stat snapshot into the ring file.
+# Prints "<now> <load_lines> <old_format>" and then the lines that still have to
+# be appended ("L ..."). The append itself is left to the caller: awk's
+# `print > file` truncates on first use inside one program run, so it can write
+# the new baseline but cannot append a sample.
 #
 # A load sample is one integer per core in TENTHS of a percent (43 = 4.3 %), not
 # a decimal: rpcd parses the reply and re-serialises it, which turns 4.3 into
@@ -200,21 +204,16 @@ _hist_append() {
 # <old_format> is 1 when the file still holds the pre-integer format (a decimal
 # point anywhere in a sample): the caller then drops the file instead of
 # publishing 120 nulls for the next twenty minutes.
-#   $1 frequency in kHz (0 = unknown), $2 clock as seconds since the epoch
+#   $1 clock as seconds since the epoch
 _cpu_hist_sample() {
-	local freq="$1" now="$2" out line nf nl
+	local now="$1" out line nl
 
-	out=$(awk -v now="$now" -v freq="$freq" -v gate="$HIST_GATE" \
-		-v freqf="$HIST_FREQ" -v loadf="$HIST_LOAD" -v basef="$HIST_BASE" '
+	out=$(awk -v now="$now" -v gate="$HIST_GATE" \
+		-v loadf="$HIST_LOAD" -v basef="$HIST_BASE" '
 		BEGIN {
-			nf = 0; nl = 0; lf = 0; ll = 0; bts = 0; nbc = 0; oldfmt = 0
-			# Both files are read here anyway to place the gate, so counting
-			# their lines costs no extra pass and saves a `wc` fork.
-			while ((getline l < freqf) > 0) {
-				split(l, a, " ")
-				if (a[1] ~ /^[0-9]+$/ && a[2] ~ /^[0-9]+$/) { nf++; lf = a[1] + 0 }
-			}
-			close(freqf)
+			nl = 0; ll = 0; bts = 0; nbc = 0; oldfmt = 0
+			# The file is read here anyway to place the gate, so counting its
+			# lines costs no extra pass and saves a `wc` fork.
 			while ((getline l < loadf) > 0) {
 				split(l, a, " ")
 				if (a[1] ~ /^[0-9]+$/) { nl++; ll = a[1] + 0 }
@@ -246,7 +245,7 @@ _cpu_hist_sample() {
 			ci[nc] = $5 + $6
 		}
 		END {
-			printf "%d %d %d %d\n", now, nf, nl, oldfmt
+			printf "%d %d %d\n", now, nl, oldfmt
 			if (nc < 1) exit
 
 			# The reference advances on every round that got the lock, even
@@ -257,17 +256,11 @@ _cpu_hist_sample() {
 			print line > basef
 			close(basef)
 
-			# One tick publishes BOTH curves: they share an x window, so a
-			# point that only one of them had would put the two charts half a
-			# poll out of phase (visible as the head dots drifting apart).
-			# The gate therefore looks at the newest of the two published
-			# timestamps, never at `bts` - the reference is rewritten every
-			# round, so `now - bts` is always one poll interval and would block
-			# every sample the moment the gate exceeds the poll.
-			last = (lf > ll ? lf : ll)
-			if (last > 0 && now - last < gate && now >= last) exit
-
-			if (freq > 0) printf "F %d %d\n", now, freq
+			# The gate looks at the newest published timestamp, never at `bts`
+			# - the reference is rewritten every round, so `now - bts` is
+			# always one poll interval and would block every sample the moment
+			# the gate exceeds the poll.
+			if (ll > 0 && now - ll < gate && now >= ll) exit
 
 			if (bts > 0 && nbc == nc) {
 				out = ""
@@ -295,15 +288,14 @@ _cpu_hist_sample() {
 	# line for one of the two files.
 	while IFS= read -r line; do
 		case "$line" in
-			F\ *) _hist_append "$HIST_FREQ" "${line#F }" "${nf:-0}" ;;
 			L\ *) _hist_append "$HIST_LOAD" "${line#L }" "${nl:-0}" ;;
 			*)
 				set -- $line
-				nf="${2:-0}"; nl="${3:-0}"
+				nl="${2:-0}"
 				# A file written by the pre-integer format cannot be read as
 				# tenths, and mixing the two would draw a curve ten times too
 				# high. Drop it once; the next rounds rebuild it.
-				[ "${4:-0}" = 1 ] && : > "$HIST_LOAD"
+				[ "${3:-0}" = 1 ] && : > "$HIST_LOAD"
 				;;
 		esac
 	done <<EOF
@@ -311,23 +303,13 @@ $out
 EOF
 }
 
-# Publish the two ring files as one JSON object. A sample that is not strictly
+# Publish the ring file as one JSON object. A sample that is not strictly
 # formed is skipped: a torn line costs one point, never the whole reply.
 #   $1 clock in seconds (empty = no age filter)
 _cpu_hist_json() {
-	awk -v now="${1:-0}" -v ttl="$HIST_TTL" -v freqf="$HIST_FREQ" -v loadf="$HIST_LOAD" '
+	awk -v now="${1:-0}" -v ttl="$HIST_TTL" -v loadf="$HIST_LOAD" '
 		BEGIN {
-			printf "{\"freq\":["
-			n = 0
-			while ((getline l < freqf) > 0) {
-				split(l, a, " ")
-				if (a[1] !~ /^[0-9]+$/ || a[2] !~ /^[0-9]+$/) continue
-				t = a[1] + 0
-				if (now > 0 && (t < now - ttl || t > now + 60)) continue
-				printf "%s[%d,%d]", (n++ ? "," : ""), t, a[2] + 0
-			}
-			close(freqf)
-			printf "],\"load\":["
+			printf "{\"load\":["
 			n = 0
 			while ((getline l < loadf) > 0) {
 				split(l, a, " ")
@@ -355,13 +337,12 @@ _cpu_hist_json() {
 		}'
 }
 
-# Sample the ring buffers (at most one point per HIST_GATE) and print them for
-# the status reply. Every failure path still prints the current contents: a
-# denied lock, a missing clock or an unwritable file must never blank a chart
-# that is already showing a valid curve.
-#   $1 frequency in kHz
+# Sample the ring buffer (at most one point per HIST_GATE) and print it for the
+# status reply. Every failure path still prints the current contents: a denied
+# lock, a missing clock or an unwritable file must never blank a chart that is
+# already showing a valid curve.
 _cpu_hist() {
-	local freq="$1" now lock=0
+	local now lock=0
 
 	now=$(date +%s 2>/dev/null)
 	case "$now" in ''|*[!0-9]*) now="" ;; esac
@@ -377,7 +358,7 @@ _cpu_hist() {
 				flock -x -n 9 2>/dev/null || lock=0
 			fi
 		fi
-		[ "$lock" = 1 ] && _cpu_hist_sample "$freq" "$now"
+		[ "$lock" = 1 ] && _cpu_hist_sample "$now"
 		exec 9>&- 2>/dev/null
 	fi
 
@@ -550,17 +531,12 @@ get_status() {
 		*) cpu_ticks='[]' ;;
 	esac
 
-	# History for the two curves. The frequency mirrors what the page shows as
-	# current (hardware clock first, scaling target as the fallback), so the
-	# newest point always agrees with the live value rendered above it. This is
-	# also the only clock read for the history; the JSON below reuses it.
-	local cpu_hist _hist_freq
-	_hist_freq="${cpu_hw_freq:-0}"
-	[ "$_hist_freq" = 0 ] && _hist_freq="${cpu_cur_freq:-0}"
-	cpu_hist=$(_cpu_hist "$_hist_freq")
+	# History for the usage curve. One clock read here, reused by the JSON.
+	local cpu_hist
+	cpu_hist=$(_cpu_hist)
 	case "$cpu_hist" in
 		'{'*'}') ;;
-		*) cpu_hist='{"freq":[],"load":[]}' ;;
+		*) cpu_hist='{"load":[]}' ;;
 	esac
 
 	# CPU architecture info: one sed instead of grep -m1 | awk -F': ' (two
