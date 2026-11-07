@@ -1,0 +1,214 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-airoha-fancontrol\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Configure fan control mode and speed curves."
+msgstr ""
+
+msgid "View real-time fan speed and system temperatures."
+msgstr ""
+
+msgid "Fan Speed"
+msgstr ""
+
+msgid "Fan Status"
+msgstr ""
+
+msgid "Control Mode"
+msgstr ""
+
+msgid "Mode"
+msgstr ""
+
+msgid "Automatic (Follow Curve)"
+msgstr ""
+
+msgid "Manual (Fixed Speed)"
+msgstr ""
+
+msgid "Manual Fan Speed (PWM)"
+msgstr ""
+
+msgid "Set a fixed PWM value (0-255). 0 = Off, 255 = Full Speed"
+msgstr ""
+
+msgid "Fan Curve Preset"
+msgstr ""
+
+msgid "Quiet - Lower speeds, higher temps"
+msgstr ""
+
+msgid "Balanced - Good mix of noise and cooling"
+msgstr ""
+
+msgid "Performance - Higher speeds, lower temps"
+msgstr ""
+
+msgid "Custom - Define your own curve"
+msgstr ""
+
+msgid "quiet"
+msgstr ""
+
+msgid "balanced"
+msgstr ""
+
+msgid "performance"
+msgstr ""
+
+msgid "custom"
+msgstr ""
+
+msgid "Full Speed"
+msgstr ""
+
+msgid "Manual"
+msgstr ""
+
+msgid "Automatic"
+msgstr ""
+
+msgid "Balanced"
+msgstr ""
+
+msgid "Board Temperature"
+msgstr ""
+
+msgid "Cooling priority"
+msgstr ""
+
+msgid "Curve is paused"
+msgstr ""
+
+msgid "Custom"
+msgstr ""
+
+msgid "Custom temperature curve"
+msgstr ""
+
+msgid "Fixed PWM output"
+msgstr ""
+
+msgid "Fan PWM"
+msgstr ""
+
+msgid "Following fan curve"
+msgstr ""
+
+msgid "Low noise priority"
+msgstr ""
+
+msgid "Noise and cooling balanced"
+msgstr ""
+
+msgid "Performance"
+msgstr ""
+
+msgid "Preview"
+msgstr ""
+
+msgid "PWM output"
+msgstr ""
+
+msgid "Quiet"
+msgstr ""
+
+msgid "Real-time Trends"
+msgstr ""
+
+msgid "Auto (Closed Loop)"
+msgstr ""
+
+msgid "Unknown"
+msgstr ""
+
+msgid "Curve Preview"
+msgstr ""
+
+msgid "Temperature (°C)"
+msgstr ""
+
+msgid "PWM (0-255)"
+msgstr ""
+
+msgid "Custom Curve Editor"
+msgstr ""
+
+msgid "Define temperature thresholds and corresponding fan speeds."
+msgstr ""
+
+msgid "Curve Points"
+msgstr ""
+
+msgid "Point %d Temperature (°C)"
+msgstr ""
+
+msgid "Point %d PWM (0-255)"
+msgstr ""
+
+msgid "Temperatures"
+msgstr ""
+
+msgid "System"
+msgstr ""
+
+msgid "CPU"
+msgstr ""
+
+msgid "Board (Fan Curve)"
+msgstr ""
+
+msgid "10G PHY"
+msgstr ""
+
+msgid "Switch PHY"
+msgstr ""
+
+msgid "WiFi"
+msgstr ""
+
+msgid "2.4 GHz Radio"
+msgstr ""
+
+msgid "5 GHz Radio"
+msgstr ""
+
+msgid "6 GHz Radio"
+msgstr ""
+
+msgid "Fan Control"
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "auto"
+msgstr ""
+
+msgid "Grant access to Airoha fan control"
+msgstr ""
+
+msgid "No data"
+msgstr ""
+
+msgid "Normal"
+msgstr ""
+
+msgid "Warm"
+msgstr ""
+
+msgid "Hot"
+msgstr ""
+
+msgid "Critical"
+msgstr ""
+
+msgid "Last 2 minutes"
+msgstr ""

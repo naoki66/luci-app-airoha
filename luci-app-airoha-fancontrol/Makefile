@@ -21,6 +21,7 @@ define Package/$(LUCI_NAME)/install
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/fan
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/fan/status.js $(1)/www/luci-static/resources/view/fan/
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/fan/settings.js $(1)/www/luci-static/resources/view/fan/
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/fan/theme.js $(1)/www/luci-static/resources/view/fan/
 
 	# Install UCI configuration
 	$(INSTALL_DIR) $(1)/etc/config
