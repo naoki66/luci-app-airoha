@@ -17,6 +17,7 @@ var VALUE_GRID_DIVISIONS = 4;
 var HISTORY_STORAGE_KEY = 'airoha-fancontrol-history-v1';
 var CHART_PAD = { left: 31, right: 6, top: 7, bottom: 16 };
 var history = [];
+var themeWatched = false;
 
 /* Every readout on this page is keyed by a semantic level rather than a raw
  * hex colour. The level maps onto the shared ramp in theme.js, so the same
@@ -26,19 +27,19 @@ var CHARTS = [
 	{ id: 'fc-temp', key: 'temperature', level: 'hot',
 		line: '--fan-hot', fill: '--fan-hot-soft',
 		lineFallback: '#bc4c00', fillFallback: 'rgba(188,76,0,.14)',
-		minMax: 40, step: 20, label: _('Board Temperature'),
+		minMax: 40, step: 20, label: _('Board Temperature'), unit: 'C',
 		format: function(value) { return value + '\u00b0'; },
 		read: function(s) { return (s.temp_board || 0) + '\u00b0C'; } },
 	{ id: 'fc-pwm', key: 'pwm', level: 'info',
 		line: '--fan-info', fill: '--fan-info-soft',
 		lineFallback: '#0969da', fillFallback: 'rgba(9,105,218,.14)',
-		minMax: 100, step: 50, label: _('Fan PWM'),
+		minMax: 100, step: 50, label: _('Fan PWM'), unit: ' / 255',
 		format: function(value) { return String(value); },
 		read: function(s) { return (s.fan_pwm || 0) + ' / 255'; } },
 	{ id: 'fc-rpm', key: 'rpm', level: 'ok',
 		line: '--fan-ok', fill: '--fan-ok-soft',
 		lineFallback: '#1a7f37', fillFallback: 'rgba(26,127,55,.16)',
-		minMax: 1000, step: 500, label: _('Fan Speed'),
+		minMax: 1000, step: 500, label: _('Fan Speed'), unit: ' RPM',
 		format: function(value) { return String(value); },
 		read: function(s) { return (s.fan_rpm || 0) + ' RPM'; } }
 ];
@@ -64,6 +65,41 @@ var PRESET_INFO = {
 	performance: { value: _('Performance'), sub: _('Cooling priority'), level: 'ok' },
 	custom: { value: _('Custom'), sub: _('Custom temperature curve'), level: 'custom' }
 };
+
+function clockText(ts) {
+	var d = new Date(ts);
+	function pad(v) { return v < 10 ? '0' + v : String(v); }
+	return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+}
+
+/* A monitoring page has to say how fresh its numbers are. A failed RPC used to
+ * leave the last values on screen with no indication that they had gone stale. */
+function markLive(ok, ts, root) {
+	var dot = document.getElementById('fan-live-dot');
+	var text = document.getElementById('fan-live-text');
+	var stamp = document.getElementById('fan-last-update');
+	if (dot) dot.setAttribute('data-state', ok ? 'live' : 'stale');
+	if (text) text.textContent = ok ? _('Live') : _('Connection lost');
+	if (stamp) stamp.textContent = ok
+		? _('Last update %s').format(clockText(ts))
+		: _('Showing the last known values');
+	if (root) root.classList.toggle('is-stale', !ok);
+}
+
+function healthInfo(status) {
+	if (!status) return { level: 'none', text: _('No data') };
+	var maxTemp = 0;
+	ALL_GAUGES.forEach(function(gauge) {
+		maxTemp = Math.max(maxTemp, Number(status[gauge.key]) || 0);
+	});
+	if ((Number(status.fan_rpm) || 0) === 0 && (Number(status.fan_pwm) || 0) > 0)
+		return { level: 'error', text: _('Fan stopped') };
+	if (maxTemp > fanTheme.THRESHOLDS[2])
+		return { level: 'error', text: _('Overheating') };
+	if (maxTemp > fanTheme.THRESHOLDS[1])
+		return { level: 'hot', text: _('Hot') };
+	return { level: 'ok', text: _('Normal') };
+}
 
 function restoreHistory() {
 	try {
@@ -106,9 +142,11 @@ function summaryData(status) {
 	var ready = !!status;
 	var mode = modeInfo(s.uci_mode);
 	var preset = presetInfo(s.uci_mode, s.uci_preset);
+	var health = healthInfo(status);
 	var dash = '\u2014';
 	return [
 		{ id: 'fan-summary-rpm', icon: 'fan', level: 'info', title: _('Fan Speed'),
+			badge: health.text, badgeLevel: health.level,
 			value: ready ? String(s.fan_rpm || 0) : dash, unit: ready ? 'RPM' : '',
 			sub: ready ? (s.fan_percentage || 0) + '% ' + _('PWM output') : dash },
 		{ id: 'fan-summary-pwm', icon: 'pwm', level: 'ok', title: _('Fan PWM'),
@@ -126,7 +164,9 @@ function renderSummary(status) {
 		return E('div', { 'id': card.id, 'class': 'fan-summary-card', 'data-level': card.level }, [
 			E('div', { 'class': 'fan-card-top' }, [
 				fanTheme.icon(card.icon),
-				E('div', { 'class': 'fan-card-title' }, card.title)
+				E('div', { 'class': 'fan-card-title' }, card.title),
+				card.badge ? E('span', { 'class': 'fan-badge', 'data-role': 'badge',
+					'data-level': card.badgeLevel }, card.badge) : ''
 			]),
 			E('div', { 'class': 'fan-card-value' }, [
 				E('span', { 'data-role': 'value' }, card.value),
@@ -150,6 +190,11 @@ function updateSummary(status) {
 		setRole(el, 'value', card.value);
 		setRole(el, 'unit', card.unit);
 		setRole(el, 'sub', card.sub);
+		var badge = el.querySelector('[data-role="badge"]');
+		if (badge) {
+			badge.textContent = card.badge || '';
+			badge.setAttribute('data-level', card.badgeLevel || 'none');
+		}
 	});
 }
 
@@ -230,7 +275,7 @@ function chartScale(hist, key, minMax, step) {
 	return Math.ceil(maximum / step) * step;
 }
 
-function drawChart(canvas, hist, chart) {
+function drawChart(canvas, hist, chart, hoverSample) {
 	if (!canvas || !hist.length) return;
 	var style = getComputedStyle(canvas);
 	var width = Math.max(canvas.clientWidth, 1);
@@ -306,6 +351,26 @@ function drawChart(canvas, hist, chart) {
 	ctx.strokeStyle = lineColor;
 	ctx.lineWidth = 1.7;
 	ctx.stroke();
+
+	if (hoverSample) {
+		var hp = point(hoverSample);
+		ctx.save();
+		ctx.strokeStyle = lineColor;
+		ctx.globalAlpha = 0.6;
+		ctx.lineWidth = 1;
+		ctx.setLineDash([ 3, 3 ]);
+		ctx.beginPath();
+		ctx.moveTo(hp.x, pad.top);
+		ctx.lineTo(hp.x, plotB);
+		ctx.stroke();
+		ctx.setLineDash([]);
+		ctx.globalAlpha = 1;
+		ctx.fillStyle = lineColor;
+		ctx.beginPath();
+		ctx.arc(hp.x, hp.y, 3.5, 0, 2 * Math.PI);
+		ctx.fill();
+		ctx.restore();
+	}
 }
 
 function chartCard(chart, status) {
@@ -316,7 +381,8 @@ function chartCard(chart, status) {
 		E('div', { 'class': 'fan-chart-frame' }, [
 			E('canvas', { 'id': chart.id, 'class': 'fan-chart-canvas',
 				'role': 'img', 'aria-label': chart.label }),
-			E('div', { 'id': chart.id + '-empty', 'class': 'fan-chart-empty' }),
+			E('div', { 'id': chart.id + '-empty', 'class': 'fan-chart-empty' },
+				_('Collecting data…')),
 			E('div', { 'id': chart.id + '-tip', 'class': 'fan-chart-tip' })
 		]),
 		E('div', { 'class': 'fan-chart-legend' }, [
@@ -327,10 +393,51 @@ function chartCard(chart, status) {
 }
 
 function drawAllCharts() {
-	if (!history.length) return;
 	CHARTS.forEach(function(chart) {
-		drawChart(document.getElementById(chart.id), history, chart);
+		var canvas = document.getElementById(chart.id);
+		var empty = document.getElementById(chart.id + '-empty');
+		if (empty) empty.classList.toggle('is-visible', !history.length);
+		if (!history.length) return;
+		drawChart(canvas, history, chart);
 	});
+}
+
+function bindChartTooltip(chart) {
+	var canvas = document.getElementById(chart.id);
+	var tip = document.getElementById(chart.id + '-tip');
+	if (!canvas || !tip) return;
+
+	function clear() {
+		tip.classList.remove('is-visible');
+		drawChart(canvas, history, chart);
+	}
+
+	canvas.addEventListener('mousemove', function(ev) {
+		if (!history.length) return;
+		var rect = canvas.getBoundingClientRect();
+		var x = ev.clientX - rect.left;
+		var plotW = Math.max(rect.width - CHART_PAD.left - CHART_PAD.right, 1);
+		var ratio = (x - CHART_PAD.left) / plotW;
+		if (ratio < 0 || ratio > 1) { clear(); return; }
+
+		var now = history[history.length - 1].time;
+		var target = now - HISTORY_WINDOW_MS + ratio * HISTORY_WINDOW_MS;
+		var best = null, bestDist = Infinity;
+		for (var i = 0; i < history.length; i++) {
+			var dist = Math.abs(history[i].time - target);
+			if (dist < bestDist) { bestDist = dist; best = history[i]; }
+		}
+		if (!best) { clear(); return; }
+
+		tip.textContent = clockText(best.time) + '  ' +
+			chart.format(best[chart.key]) + (chart.unit || '');
+		tip.classList.add('is-visible');
+		var tipWidth = tip.offsetWidth || 96;
+		tip.style.left = Math.max(2, Math.min(x + 10, rect.width - tipWidth - 4)) + 'px';
+		drawChart(canvas, history, chart, best);
+	});
+
+	canvas.addEventListener('mouseleave', clear);
 }
 
 function updateChartValues(status) {
@@ -347,13 +454,26 @@ return view.extend({
 
 	render: function() {
 		fanTheme.apply();
+		if (!themeWatched) {
+			themeWatched = true;
+			fanTheme.onThemeChange(function() { drawAllCharts(); });
+		}
 		restoreHistory();
 
 		var viewEl = E('div', { 'class': 'cbi-map fan-app fan-dashboard' }, [
 			E('div', { 'class': 'fan-app-header' }, [
-				E('h2', {}, _('Fan Status')),
-				E('div', { 'class': 'fan-app-meta' },
-					_('View real-time fan speed and system temperatures.'))
+				E('div', {}, [
+					E('h2', {}, _('Fan Status')),
+					E('div', { 'class': 'fan-app-subtitle' },
+						_('View real-time fan speed and system temperatures.'))
+				]),
+				E('div', { 'class': 'fan-app-meta' }, [
+					E('span', { 'class': 'fan-live' }, [
+						E('span', { 'class': 'fan-live-dot', 'id': 'fan-live-dot', 'data-state': 'pending' }),
+						E('span', { 'id': 'fan-live-text' }, _('Collecting data…'))
+					]),
+					E('span', { 'id': 'fan-last-update' }, '')
+				])
 			]),
 			renderSummary(null),
 			E('div', { 'class': 'fan-panel' }, [
@@ -368,8 +488,7 @@ return view.extend({
 			E('div', { 'class': 'fan-panel' }, [
 				E('div', { 'class': 'fan-panel-head' }, [
 					E('div', { 'class': 'fan-panel-title' }, _('Temperatures')),
-					E('div', { 'class': 'fan-panel-hint' },
-						'0\u2013100\u00b0C')
+					E('div', { 'class': 'fan-panel-hint' }, '0\u2013100\u00b0C')
 				]),
 				E('div', { 'class': 'fan-temp-grid' }, [
 					temperatureGroup(_('System'), SYSTEM_GAUGES, null),
@@ -389,11 +508,15 @@ return view.extend({
 				updateChartValues(current);
 				appendHistory(current);
 				drawAllCharts();
+				markLive(true, Date.now(), viewEl);
+			}, this)).catch(L.bind(function() {
+				markLive(false, 0, viewEl);
 			}, this));
 		}, this);
 
 		requestAnimationFrame(function() {
 			drawAllCharts();
+			CHARTS.forEach(bindChartTooltip);
 			fetchData();
 		});
 		poll.add(fetchData, 3);

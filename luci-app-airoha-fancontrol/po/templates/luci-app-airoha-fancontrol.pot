@@ -212,3 +212,30 @@ msgstr ""
 
 msgid "Last 2 minutes"
 msgstr ""
+
+msgid "Live"
+msgstr ""
+
+msgid "Last update %s"
+msgstr ""
+
+msgid "Connection lost"
+msgstr ""
+
+msgid "Showing the last known values"
+msgstr ""
+
+msgid "Collecting data…"
+msgstr ""
+
+msgid "Fan stopped"
+msgstr ""
+
+msgid "Overheating"
+msgstr ""
+
+msgid "Temperature points must increase."
+msgstr ""
+
+msgid "PWM points must not decrease."
+msgstr ""

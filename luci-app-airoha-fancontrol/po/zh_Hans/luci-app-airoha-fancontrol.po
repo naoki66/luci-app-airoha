@@ -213,3 +213,30 @@ msgstr "过热"
 
 msgid "Last 2 minutes"
 msgstr "最近 2 分钟"
+
+msgid "Live"
+msgstr "实时"
+
+msgid "Last update %s"
+msgstr "最后更新 %s"
+
+msgid "Connection lost"
+msgstr "连接中断"
+
+msgid "Showing the last known values"
+msgstr "显示最后一次成功读数"
+
+msgid "Collecting data…"
+msgstr "采集中…"
+
+msgid "Fan stopped"
+msgstr "风扇停转"
+
+msgid "Overheating"
+msgstr "温度过高"
+
+msgid "Temperature points must increase."
+msgstr "温度点必须依次递增。"
+
+msgid "PWM points must not decrease."
+msgstr "PWM 点不可递减。"

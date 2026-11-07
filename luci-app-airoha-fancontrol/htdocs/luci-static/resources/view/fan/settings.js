@@ -28,6 +28,11 @@ var PRESET_LABELS = {
 	custom: _('Custom'), preview: _('Preview')
 };
 
+/* The theme listener must call the current view's redraw, not accumulate one
+ * closure per render (LuCI keeps both views in the same document). */
+var settingsRedraw = null;
+var settingsThemeWatched = false;
+
 function attr(value) {
 	return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
@@ -148,6 +153,30 @@ function readCustomPoints() {
 		points.push({ temp: Math.min(100, Math.max(0, temp)), pwm: Math.min(255, Math.max(0, pwm)) });
 	}
 	return points;
+}
+
+/* LuCI validates each field against range(0,100)/range(0,255) but knows
+ * nothing about the relationship between the five points. A decreasing curve
+ * was accepted and then drawn as a zig-zag; say so before it can be saved. */
+function validatePoints() {
+	var error = document.getElementById('fan-curve-error');
+	if (!error) return;
+	var points = readCustomPoints();
+	var messages = [];
+	for (var i = 1; i < points.length; i++) {
+		if (points[i].temp <= points[i - 1].temp) {
+			messages.push(_('Temperature points must increase.'));
+			break;
+		}
+	}
+	for (var j = 1; j < points.length; j++) {
+		if (points[j].pwm < points[j - 1].pwm) {
+			messages.push(_('PWM points must not decrease.'));
+			break;
+		}
+	}
+	error.textContent = messages.join(' ');
+	error.classList.toggle('is-visible', messages.length > 0);
 }
 
 function legendMarkup() {
@@ -271,7 +300,10 @@ return view.extend({
 					var visible = getCurrentMode() === 'auto' && getCurrentPreset() === 'custom';
 					if (point1Marker) {
 						var section = point1Marker.closest('.cbi-section');
-						if (section) section.style.display = visible ? '' : 'none';
+						/* A class keeps the reveal animation and stops this
+						 * from fighting LuCI's depends(), which already owns
+						 * the manual_pwm row. */
+						if (section) section.classList.toggle('is-hidden', !visible);
 					}
 				}
 
@@ -294,6 +326,39 @@ return view.extend({
 					drawCurveCanvas('curve-canvas', curves, preset,
 						hasPreview ? readCustomPoints() : null, activePoint);
 					updateLegend(preset, hasPreview);
+					validatePoints();
+				}
+
+				settingsRedraw = redrawCanvas;
+				if (!settingsThemeWatched) {
+					settingsThemeWatched = true;
+					fanTheme.onThemeChange(function() {
+						if (settingsRedraw) settingsRedraw();
+					});
+				}
+
+				for (var i = 1; i <= 5; i++) {
+					var marker = node.querySelector('[data-name="point' + i + '_temp"]');
+					if (marker) marker.setAttribute('data-point', String(i));
+
+					[ '_temp', '_pwm' ].forEach(function(suffix) {
+						var el = node.querySelector('[data-name="point' + i + suffix + '"] input');
+						if (!el) return;
+						el.addEventListener('input', redrawCanvas);
+
+						/* Focusing a field highlights its dot on the preview,
+						 * so ten numeric inputs read as five curve points. */
+						(function(pointNo) {
+							function setFocus(on) {
+								activePoint = on ? pointNo : 0;
+								var card = el.closest('.cbi-value');
+								if (card) card.classList.toggle('is-focused', on);
+								redrawCanvas();
+							}
+							el.addEventListener('focus', function() { setFocus(true); });
+							el.addEventListener('blur', function() { setFocus(false); });
+						})(i);
+					});
 				}
 
 				redrawCanvas();
@@ -313,11 +378,15 @@ return view.extend({
 					});
 				}
 
-				for (var i = 1; i <= 5; i++) {
-					[ '_temp', '_pwm' ].forEach(function(suffix) {
-						var el = node.querySelector('[data-name="point' + i + suffix + '"] input');
-						if (el) el.addEventListener('input', redrawCanvas);
-					});
+				/* The backing store used to be sized only on draw, so a window
+				 * resize or a LuCI panel collapse left it stretched and blurry.
+				 * Changing canvas.width/height does not change its CSS box, so
+				 * the observer cannot feed back into itself. */
+				var canvasEl = document.getElementById('curve-canvas');
+				if (canvasEl && window.ResizeObserver) {
+					new window.ResizeObserver(function() { redrawCanvas(); }).observe(canvasEl);
+				} else if (canvasEl) {
+					window.addEventListener('resize', redrawCanvas);
 				}
 			});
 			return node;

@@ -206,6 +206,16 @@ var COMPONENT_CSS = `
 .fan-curve-point-head span{flex:1;text-align:center}
 .fan-curve-point-head span:first-child{text-align:left}
 
+.fan-app-subtitle{font-size:12px;line-height:1.5;color:var(--fan-muted);margin-top:2px}
+.fan-app.is-stale .fan-summary-card,.fan-app.is-stale .fan-chart-card,.fan-app.is-stale .fan-temp-card{opacity:.68}
+.fan-app .fan-curve-section .cbi-value{position:relative}
+.fan-app .fan-curve-section .cbi-value[data-point]:before{content:attr(data-point);position:absolute;top:9px;right:10px;display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--fan-track);color:var(--fan-muted);font-family:var(--fan-font-mono);font-size:11px}
+.fan-app .fan-curve-section.is-hidden{display:none}
+.fan-app .fan-curve-section:not(.is-hidden){animation:fan-reveal .18s ease}
+@keyframes fan-reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.fan-app .fan-curve-section .cbi-value.is-focused{box-shadow:0 0 0 2px var(--fan-info-soft)}
+@media(prefers-reduced-motion:reduce){.fan-app .fan-curve-section:not(.is-hidden){animation:none}.fan-temp-fill,.fan-app .cbi-value-field input,.fan-app .cbi-value-field select,.fan-app .cbi-button{transition:none}}
+@media(pointer:coarse){.fan-app .cbi-value-field input,.fan-app .cbi-value-field select,.fan-app .cbi-button{min-height:44px}}
 @media(max-width:1050px){.fan-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}.fan-chart-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.fan-app .fan-curve-section{grid-template-columns:1fr}.fan-app .fan-curve-section>h3,.fan-app .fan-curve-section>.cbi-section-descr,.fan-app .fan-curve-section>.fan-curve-point-head,.fan-app .fan-curve-section>.fan-curve-error{grid-column:auto}}
 @media(max-width:640px){.fan-app{padding-bottom:var(--fan-sp-3)}.fan-app .cbi-section{padding:var(--fan-sp-3);margin:var(--fan-gap-sm) 0!important}.fan-app .cbi-value{display:block;padding:var(--fan-sp-3) 0}.fan-app .cbi-value-title{display:block;margin-bottom:7px}.fan-app .cbi-value-field{margin-left:0!important}.fan-app .fan-curve-section .cbi-value{padding:var(--fan-sp-3)}.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-summary-card{min-height:88px}.fan-chart-canvas{height:112px}.fan-curve-canvas{height:250px}.fan-panel{padding:var(--fan-sp-3)}}`;
