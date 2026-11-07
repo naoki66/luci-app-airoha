@@ -1,129 +1,23 @@
 #!/bin/sh /etc/rc.common
 #
-# Airoha NPU — apply persisted CPU control settings at boot.
+# Airoha NPU — make sure the rpcd backend is registered at boot.
 #
-# The CPU frequency scaling governor / max frequency are runtime-only sysfs
-# knobs that the kernel resets to its built-in default (ondemand) on every
-# reboot. The NPU status page persists the user's choice to UCI
-# (airoha_npu.@cpu[0].governor / .max_freq); this script re-applies it at boot
-# so the selection survives a reboot.
-#
-# Every outcome is logged with the "airoha-npu" tag. The 0664-without-exec-bit
-# build (see PKG_RELEASE history) made this script fail with exit 126 and
-# produce no output at all, so "the governor resets on every reboot" had no
-# visible cause. Silent failure is the bug, not the reset itself.
-
-START=89
-
-CPUFREQ_ROOT=/sys/devices/system/cpu/cpufreq
-# The board supports 500-1400 MHz; keep the default selection at 1200 MHz.
-CPU_MIN_FREQ_KHZ=500000
-CPU_MAX_FREQ_KHZ=1400000
-CPU_DEFAULT_GOVERNOR=ondemand
-CPU_DEFAULT_MAX_FREQ_KHZ=1200000
-# Bounded wait for cpufreq to show up during early boot.
-CPUFREQ_WAIT_SECS=15
-
-log() { logger -t airoha-npu "$@"; }
-log_warn() { logger -t airoha-npu -p user.warn "$@"; }
-
-find_cpufreq_policy() {
-	local dir
-	for dir in "$CPUFREQ_ROOT"/policy[0-9]* "$CPUFREQ_ROOT"; do
-		[ -w "$dir/scaling_governor" ] || continue
-		printf '%s' "$dir"
-		return 0
-	done
-	return 1
-}
-
-freq_values() {
-	local dir="$1" values
-
-	values=$(cat "$dir/scaling_available_frequencies" 2>/dev/null)
-	[ -n "$values" ] || values="$(cat "$dir/scaling_min_freq" 2>/dev/null) \
-$(cat "$dir/scaling_max_freq" 2>/dev/null) \
-$(cat "$dir/cpuinfo_min_freq" 2>/dev/null) \
-$(cat "$dir/cpuinfo_max_freq" 2>/dev/null)"
-	printf '%s\n' "$values"
-}
-
-freq_allowed() {
-	local freq="$2"
-
-	case "$freq" in ''|*[!0-9]*) return 1 ;; esac
-	[ "$freq" -ge "$CPU_MIN_FREQ_KHZ" ] 2>/dev/null || return 1
-	[ "$freq" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null || return 1
-	return 0
-}
-
-governor_allowed() {
-	local dir="$1" governor value
-	governor="$2"
-	for value in $(cat "$dir/scaling_available_governors" 2>/dev/null); do
-		[ "$value" = "$governor" ] && return 0
-	done
-	return 1
-}
-
-apply_cpu_settings() {
-	local governor max_freq sys_dir applied_governor=""
-
-	sys_dir=$(find_cpufreq_policy)
-	if [ -z "$sys_dir" ]; then
-		log_warn "no writable cpufreq policy under $CPUFREQ_ROOT after ${CPUFREQ_WAIT_SECS}s; persisted CPU settings NOT applied"
-		return 1
-	fi
-
-	governor=$(uci -q get airoha_npu.@cpu[0].governor 2>/dev/null)
-	max_freq=$(uci -q get airoha_npu.@cpu[0].max_freq 2>/dev/null)
-	[ -n "$governor" ] || governor=$(uci -q get cpufreq.cpufreq.governor0 2>/dev/null)
-	[ -n "$max_freq" ] || max_freq=$(uci -q get cpufreq.cpufreq.maxfreq0 2>/dev/null)
-	[ -n "$governor" ] || governor="$CPU_DEFAULT_GOVERNOR"
-	[ -n "$max_freq" ] || max_freq="$CPU_DEFAULT_MAX_FREQ_KHZ"
-
-	# Fall back to the highest kernel-advertised OPP within the supported range.
-	if ! freq_allowed "$sys_dir" "$max_freq"; then
-		log_warn "persisted max_freq '$max_freq' is outside ${CPU_MIN_FREQ_KHZ}-${CPU_MAX_FREQ_KHZ} kHz, falling back to a kernel OPP"
-		max_freq=""
-		for value in $(freq_values "$sys_dir" | tr ' ' '\n' | sort -n); do
-			if [ "$value" -ge "$CPU_MIN_FREQ_KHZ" ] 2>/dev/null && [ "$value" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null; then
-				max_freq="$value"
-			fi
-		done
-		[ -n "$max_freq" ] || max_freq="$CPU_DEFAULT_MAX_FREQ_KHZ"
-	fi
-
-	if [ -w "$sys_dir/scaling_max_freq" ]; then
-		if echo "$max_freq" > "$sys_dir/scaling_max_freq" 2>/dev/null; then
-			log "applied max_freq=$max_freq ($sys_dir)"
-		else
-			log_warn "failed to write max_freq=$max_freq to $sys_dir/scaling_max_freq"
-		fi
-	else
-		log_warn "$sys_dir/scaling_max_freq is not writable; max_freq left at the kernel default"
-	fi
-
-	if governor_allowed "$sys_dir" "$governor"; then
-		if echo "$governor" > "$sys_dir/scaling_governor" 2>/dev/null; then
-			applied_governor="$governor"
-			log "applied governor=$governor max_freq=$max_freq"
-		else
-			log_warn "failed to write governor=$governor to $sys_dir/scaling_governor"
-		fi
-	else
-		log_warn "governor '$governor' is not in $(cat "$sys_dir/scaling_available_governors" 2>/dev/null); keeping the kernel default"
-	fi
-
-	[ -n "$applied_governor" ]
-}
-
 # rpcd scans /usr/libexec/rpcd only once at startup and silently skips scripts
 # that are not executable. A first boot after flashing has been observed with
 # luci.airoha_npu missing from `ubus list`, which makes every call from the
 # status page fail with "Not found" until rpcd is restarted by hand. Reuse the
 # existing rpcd reload path once if the object is absent; it is a no-op when
 # registration succeeded, and reload does re-scan the directory.
+#
+# This script used to also re-apply a persisted CPU governor / max_freq on
+# every boot. That control surface is gone - the boards this app ships on are
+# fixed-clock, and the three tuning RPCs that wrote it were removed - so there
+# is nothing to re-apply and nothing to read from UCI.
+
+START=89
+
+log_warn() { logger -t airoha-npu -p user.warn "$@"; }
+
 ensure_rpcd_backend() {
 	local i
 
@@ -140,12 +34,4 @@ ensure_rpcd_backend() {
 
 start() {
 	ensure_rpcd_backend
-
-	# Wait (bounded, ~15s) for cpufreq to appear before applying persisted settings.
-	local i=0
-	while ! find_cpufreq_policy >/dev/null && [ $i -lt "$CPUFREQ_WAIT_SECS" ]; do
-		sleep 1
-		i=$((i + 1))
-	done
-	apply_cpu_settings
 }

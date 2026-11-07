@@ -79,9 +79,6 @@ msgstr "已绑定 / PPE 总表项"
 msgid "CPU model / temperature"
 msgstr "CPU 型号 / 温度"
 
-msgid "CPU Control"
-msgstr "CPU控制"
-
 msgid "VLAN passthrough"
 msgstr "VLAN 包直通桥转发"
 
@@ -145,14 +142,8 @@ msgstr "CPU 路径"
 msgid "CPU Temperature"
 msgstr "CPU 温度"
 
-msgid "CPU frequency scaling is not available on this board"
-msgstr "此设备不支持 CPU 频率调节"
-
 msgid "CPU frequency, NPU and frame engine, hardware offload switches · source luci.airoha_npu (5 s poll)"
 msgstr "CPU 频率、NPU 与帧引擎、硬件卸载开关 · 数据源 luci.airoha_npu（5 秒轮询）"
-
-msgid "CPU settings saved — they will persist after a reboot"
-msgstr "CPU 设置已保存，重启后依然生效"
 
 msgid "Cancel"
 msgstr "取消"
@@ -174,9 +165,6 @@ msgstr "客户端"
 
 msgid "Conflicts & Alerts"
 msgstr "冲突与告警"
-
-msgid "Frequency History"
-msgstr "频率历史"
 
 msgid "Core Count"
 msgstr "核心数量"
@@ -259,9 +247,6 @@ msgstr "Ghost Shaper 活动"
 msgid "Good"
 msgstr "良好"
 
-msgid "Governor"
-msgstr "运行模式"
-
 msgid "HEALTHY"
 msgstr "健康"
 
@@ -322,9 +307,6 @@ msgstr "检测到本地网关"
 msgid "Max"
 msgstr "上限"
 
-msgid "Max Freq"
-msgstr "最大频率"
-
 msgid "Mode & Acceleration Status"
 msgstr "模式与加速状态"
 
@@ -376,12 +358,6 @@ msgstr "新连接"
 msgid "No"
 msgstr "否"
 
-msgid "No CPU frequency controls are available on this board"
-msgstr "此设备没有可用的 CPU 频率控制项"
-
-msgid "No CPU governors reported by the kernel"
-msgstr "内核未上报可用的 CPU 调频策略"
-
 msgid "No WAN IP detected"
 msgstr "未检测到 WAN IP"
 
@@ -402,9 +378,6 @@ msgstr "无网络设备"
 
 msgid "No optical signal"
 msgstr "无光信号"
-
-msgid "No selectable CPU frequencies reported by the kernel"
-msgstr "内核未上报可选的 CPU 频率"
 
 msgid "No wireless hardware detected"
 msgstr "未检测到无线硬件"
@@ -613,9 +586,6 @@ msgstr "未绑定"
 msgid "Unknown"
 msgstr "未知"
 
-msgid "Unsaved changes"
-msgstr "有未保存的更改"
-
 msgid "Updated %s"
 msgstr "更新于 %s"
 
@@ -673,9 +643,6 @@ msgstr "是"
 msgid "alerts"
 msgstr "条告警"
 
-msgid "conservative"
-msgstr "保守模式"
-
 msgid "cores"
 msgstr "核"
 
@@ -694,15 +661,6 @@ msgstr "段内存"
 msgid "more"
 msgstr "更多"
 
-msgid "ondemand"
-msgstr "按需模式"
-
-msgid "performance"
-msgstr "性能模式"
-
-msgid "powersave"
-msgstr "省电模式"
-
 msgid "samples"
 msgstr "个样本"
 
@@ -714,9 +672,6 @@ msgstr "已截断"
 
 msgid "used"
 msgstr "已用"
-
-msgid "userspace"
-msgstr "用户空间"
 
 msgid "v4"
 msgstr "v4"
@@ -876,9 +831,6 @@ msgstr "加速累计"
 
 msgid "Core Load"
 msgstr "各核占用"
-
-msgid "Current Frequency"
-msgstr "当前频率"
 
 msgid "Average"
 msgstr "平均"

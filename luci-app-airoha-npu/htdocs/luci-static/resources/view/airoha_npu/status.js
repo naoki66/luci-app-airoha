@@ -26,29 +26,16 @@ var callGetWifiStats = rpc.declare({ object: 'luci.airoha_npu', method: 'getWifi
 var callFrameEngine = rpc.declare({ object: 'luci.airoha_npu', method: 'getFrameEngine' });
 var callCryptoInfo = rpc.declare({ object: 'luci.airoha_npu', method: 'getCryptoInfo' });
 
-/* The CPU governor / max-freq setters (setGovernor, setMaxFreq,
- * setCpuSettings) are gone from this view on purpose: this page is a status
- * surface, and a control that writes scaling_governor is the one thing on it
- * that can silently make the router slower. The backend still exposes all
- * three RPCs, so a board that really wants them can be given a settings page
- * without touching this file. What the page keeps is the *reading* -
- * current frequency, governor and range - which is what an operator actually
- * opens it for. */
+/* Nothing on this page touches cpufreq: the governor / max-freq setters
+ * (setGovernor, setMaxFreq, setCpuSettings) are gone from the backend as well,
+ * and getStatus no longer publishes a clock reading. The boards this app ships
+ * on are fixed-clock, so there is neither a knob to expose nor a number to
+ * show. */
 
 /* ── Shared state vocabulary ────────────────────────────────────────────── */
 
 function isEnabled(value) {
 	return value === true || value === 1 || value === '1';
-}
-
-/* The frequency the cores are actually running at: the hardware clock
- * (cpuinfo_cur_freq) when the driver exports it, the scaling target
- * (scaling_cur_freq) otherwise. On the fixed-clock boards this app ships on
- * there is nothing to read and the row is simply absent. */
-function cpuCurrentFreq(st) {
-	st = st || {};
-	var hw = Number(st.cpu_hw_freq) || 0;
-	return hw > 0 ? hw : (Number(st.cpu_cur_freq) || 0);
 }
 
 function isBridgeOffloadBlocked(mode) {
@@ -308,13 +295,6 @@ function renderCpuInfo(st) {
 	/* Both extra rows are readings. On a board without cpufreq they are simply
 	 * absent - no placeholder, no explanation: a status page does not owe the
 	 * user a warning about telemetry it never had. */
-	/* The clock and the governor that shapes it are one fact, so they share one
-	 * row: "1200 MHz · ondemand". Two rows made this card a row taller than the
-	 * core-load card beside it on every DVFS board. */
-	var freq = cpuCurrentFreq(st);
-	var gov = (st.cpu_governor && st.cpu_governor !== 'unknown') ? governorLabel(st.cpu_governor) : '';
-	if (freq)
-		rows.push(aui.row(_('Current Frequency'), aui.fmtFreq(freq) + (gov ? ' · ' + gov : '')));
 	/* Two readings the page had nowhere else to put, and the ones that make the
 	 * card the same height as the per-core bars next to it. Both come from a
 	 * single /proc read in the backend; a backend that predates them simply
@@ -775,17 +755,6 @@ function renderLoadChart(containerW) {
 		}
 	});
 	return wrap;
-}
-
-/* ── Governor label ──
- * A read-only vocabulary now: the strings are the kernel's own governor names,
- * translated where the catalogue has them. */
-function governorLabel(governor) {
-	var labels = {
-		conservative: _('conservative'), ondemand: _('ondemand'), performance: _('performance'),
-		powersave: _('powersave'), schedutil: 'schedutil', userspace: _('userspace')
-	};
-	return labels[governor] || governor;
 }
 
 /* ── CPU section assembly ──

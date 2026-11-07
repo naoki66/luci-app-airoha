@@ -55,8 +55,8 @@ include $(TOPDIR)/feeds/luci/luci.mk
 # 0644/0664 and every path that copies it verbatim (image `files/` overlays,
 # `cp` without -p, ...) propagates that. /etc/rc.d/S89airoha-npu was present
 # and enabled while /etc/init.d/airoha-npu was 0664, so boot ran it as
-# "Permission denied" (rc 126) and the persisted CPU governor was never
-# re-applied — the settings looked like they reset on every reboot.
+# "Permission denied" (rc 126) and the rpcd backend it re-registers stayed
+# missing until someone reloaded rpcd by hand.
 #
 # $(INSTALL_BIN) alone does not catch it: it chmods the *destination*, so a
 # build that never goes through this recipe still ships a dead script. Fail
@@ -91,7 +91,6 @@ define Package/$(LUCI_NAME)/install
 	# Install UCI configuration
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_DATA) ./root/etc/config/npu-monitor $(1)/etc/config/
-	$(INSTALL_DATA) ./root/etc/config/airoha_npu $(1)/etc/config/
 
 	# Install init.d scripts (executable, exec bit verified)
 	$(call Npu/install-exec,./root/etc/init.d/npu-jitter,$(1)/etc/init.d/npu-jitter)
@@ -119,7 +118,7 @@ define Package/$(LUCI_NAME)/install
 	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
 	$(INSTALL_DATA) ./root/lib/upgrade/keep.d/luci-app-airoha-npu $(1)/lib/upgrade/keep.d/
 
-	# Install init script that re-applies persisted CPU governor / max_freq at boot.
+	# Install the init script that re-registers the rpcd backend at boot.
 	# Bake the rc.d symlink so the service is enabled on a freshly flashed image too
 	# (the postinst 'enable' only runs on a running device, not during image build).
 	$(call Npu/install-exec,./root/etc/init.d/airoha-npu,$(1)/etc/init.d/airoha-npu)
@@ -129,7 +128,6 @@ endef
 
 define Package/$(LUCI_NAME)/conffiles
 /etc/config/npu-monitor
-/etc/config/airoha_npu
 endef
 
 define Package/$(LUCI_NAME)/postinst

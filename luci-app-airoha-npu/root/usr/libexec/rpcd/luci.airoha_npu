@@ -76,43 +76,6 @@ get_device_mode() {
 	fi
 }
 
-# Discover the active cpufreq policy dir (policy0 is not guaranteed to exist:
-# a cpufreq node that fails to probe can leave the driver on another index).
-_find_cpufreq_policy() {
-	local dir
-	for dir in /sys/devices/system/cpu/cpufreq/policy[0-9]* \
-		/sys/devices/system/cpu/cpufreq; do
-		[ -r "$dir/scaling_governor" ] || continue
-		printf '%s' "$dir"
-		return 0
-	done
-	return 1
-}
-
-# Keep every runtime control path (setMaxFreq / setCpuSettings) within the
-# supported 500-1400 MHz operating range. The packaged default remains 1200 MHz.
-# The status page no longer picks frequencies, so these bound the RPC surface
-# only - nothing here decides what the page displays.
-CPU_MIN_FREQ_KHZ=500000
-CPU_MAX_FREQ_KHZ=1400000
-
-_cpu_freq_allowed() {
-	local freq="$2"
-
-	case "$freq" in ''|*[!0-9]*) return 1 ;; esac
-	[ "$freq" -ge "$CPU_MIN_FREQ_KHZ" ] 2>/dev/null || return 1
-	[ "$freq" -le "$CPU_MAX_FREQ_KHZ" ] 2>/dev/null || return 1
-	return 0
-}
-
-# Per-CPU time accounting from /proc/stat, as [{"total":N,"idle":M}, ...] with
-# one element per core (index = core number). The values are cumulative jiffies
-# since boot, deliberately: a utilisation percentage can only be derived from
-# two samples, and keeping that subtraction in the reader leaves this RPC
-# stateless - two open browser tabs each measure their own interval instead of
-# overwriting a shared /tmp baseline. `idle` folds in iowait, `total` stops at
-# steal (guest/guest_nice are already counted inside user/nice, adding them
-# would double-count). One awk pass, no forks beyond the one.
 _cpu_ticks_json() {
 	awk '
 		BEGIN { printf "[" }
@@ -348,15 +311,6 @@ _cpu_hist() {
 	_cpu_hist_json "$now"
 }
 
-_cpu_governor_allowed() {
-	local dir="$1" governor value
-	governor="$2"
-	for value in $(cat "$dir/scaling_available_governors" 2>/dev/null); do
-		[ "$value" = "$governor" ] && return 0
-	done
-	return 1
-}
-
 get_status() {
 	# === NPU Status ===
 	local npu_ver=$(airoha_npu_version)
@@ -456,25 +410,9 @@ get_status() {
 		*) regions='[]' ;;
 	esac
 
-	# === CPU clock (a reading, not a capability) ===
-	# Only the values the page prints are collected here. The old block also
-	# probed the governor/frequency menus, the min/max range and a reason code
-	# for a control UI that no longer exists; on a fixed-clock board every one
-	# of those was empty anyway.
-	local cpufreq_path
-	local cpu_cur_freq=0
-	local cpu_hw_freq=0
-	local cpu_governor="unknown"
-	# -r guarded reads (see the note at npu_clock above): no fork, no stderr
-	# noise, and a missing cpufreq attribute keeps its pre-set default.
+	# Nothing about cpufreq is read or published any more: these boards are
+	# fixed-clock, and the three tuning RPCs that used the same data are gone.
 	local tmp="" type="" temp="" zone
-
-	cpufreq_path=$(_find_cpufreq_policy)
-	if [ -n "$cpufreq_path" ]; then
-		tmp=""; [ -r "$cpufreq_path/scaling_cur_freq" ] && read -r tmp < "$cpufreq_path/scaling_cur_freq"; [ -n "$tmp" ] && cpu_cur_freq="$tmp"
-		tmp=""; [ -r "$cpufreq_path/cpuinfo_cur_freq" ] && read -r tmp < "$cpufreq_path/cpuinfo_cur_freq"; [ -n "$tmp" ] && cpu_hw_freq="$tmp"
-		tmp=""; [ -r "$cpufreq_path/scaling_governor" ] && read -r tmp < "$cpufreq_path/scaling_governor"; [ -n "$tmp" ] && cpu_governor="$tmp"
-	fi
 
 	local has_pon
 	has_pon=$(airoha_pon_present)
@@ -567,9 +505,9 @@ get_status() {
 	# Strings read back from sysfs / /proc / the device tree are escaped: they
 	# are kernel-owned today, but a value carrying a quote or a brace would
 	# otherwise be spliced into the object verbatim.
-	printf '{"npu_version":"%s","npu_loaded":%s,"npu_device":"%s","npu_clock":%d,"npu_cores":%d,"offload_bound":%d,"offload_total":%d,"memory_regions":%s,"cpu_cur_freq":%d,"cpu_hw_freq":%d,"cpu_governor":"%s","cpu_count":%d,"cpu_ticks":%s,"cpu_history":%s,"cpu_arch":"%s","cpu_temp":"%s","soc_compat":"%s","has_pon":%d,"sys_uptime":%d,"loadavg":"%s"}' \
+	printf '{"npu_version":"%s","npu_loaded":%s,"npu_device":"%s","npu_clock":%d,"npu_cores":%d,"offload_bound":%d,"offload_total":%d,"memory_regions":%s,"cpu_count":%d,"cpu_ticks":%s,"cpu_history":%s,"cpu_arch":"%s","cpu_temp":"%s","soc_compat":"%s","has_pon":%d,"sys_uptime":%d,"loadavg":"%s"}' \
 		"$(_json_escape "${npu_ver:-Unknown}")" "$npu_loaded" "$(_json_escape "${npu_device:-}")" "${npu_clock:-0}" "${npu_cores:-0}" "${offload_bound:-0}" "${offload_total:-0}" "$regions" \
-		"${cpu_cur_freq:-0}" "${cpu_hw_freq:-0}" "$(_json_escape "${cpu_governor:-unknown}")" "${cpu_count:-0}" "$cpu_ticks" "$cpu_hist" \
+		"${cpu_count:-0}" "$cpu_ticks" "$cpu_hist" \
 		"$(_json_escape "${cpu_arch:-}")" "${cpu_temp:-N/A}" "$(_json_escape "${soc_compat:-}")" "${has_pon:-0}" "${sys_uptime:-0}" "$(_json_escape "${loadavg:-}")"
 }
 
@@ -1203,146 +1141,6 @@ get_crypto_info() {
 		"$chardev" "$openssl" "${engine:-null}" "$irqs" "$irate" "$ciphers_json"
 }
 
-# Persist CPU governor / max_freq to UCI so the choice survives a reboot.
-_uci_persist_cpu() {
-	uci -q get airoha_npu.@cpu[0] >/dev/null 2>&1 || \
-		uci add airoha_npu cpu >/dev/null 2>&1 || return 1
-	if [ -n "$1" ] && ! uci set airoha_npu.@cpu[0].governor="$1"; then
-		return 1
-	fi
-	if [ -n "$2" ] && ! uci set airoha_npu.@cpu[0].max_freq="$2"; then
-		return 1
-	fi
-	uci commit airoha_npu
-}
-
-set_governor() {
-	local governor cpufreq_path avail
-	governor=$(echo "$1" | jsonfilter -e "@.governor" 2>/dev/null)
-
-	if [ -z "$governor" ]; then
-		echo '{"error":"missing governor parameter"}'
-		return
-	fi
-
-	cpufreq_path=$(_find_cpufreq_policy)
-	[ -n "$cpufreq_path" ] || {
-		echo '{"error":"CPU frequency scaling is not available"}'
-		return
-	}
-
-	# Validate governor is available
-	avail=$(cat "$cpufreq_path/scaling_available_governors" 2>/dev/null)
-	if ! _cpu_governor_allowed "$cpufreq_path" "$governor"; then
-		printf '{"error":"invalid governor: %s"}' "$(_json_escape "$governor")"
-		return
-	fi
-
-	echo "$governor" > "$cpufreq_path/scaling_governor" 2>/dev/null
-	if [ $? -eq 0 ]; then
-		if ! _uci_persist_cpu "$governor"; then
-			echo '{"error":"CPU governor applied but could not be persisted"}'
-			return
-		fi
-		printf '{"result":"ok","governor":"%s"}' "$governor"
-	else
-		echo '{"error":"failed to set governor"}'
-	fi
-}
-
-set_max_freq() {
-	local freq cpufreq_path
-	freq=$(echo "$1" | jsonfilter -e "@.freq" 2>/dev/null)
-
-	if [ -z "$freq" ]; then
-		echo '{"error":"missing freq parameter"}'
-		return
-	fi
-
-	cpufreq_path=$(_find_cpufreq_policy)
-	[ -n "$cpufreq_path" ] || {
-		echo '{"error":"CPU frequency scaling is not available"}'
-		return
-	}
-
-	# Accept only a kernel-advertised frequency in the validated range.
-	if ! _cpu_freq_allowed "$cpufreq_path" "$freq"; then
-		printf '{"error":"invalid frequency: %s"}' "$(_json_escape "$freq")"
-		return
-	fi
-
-	echo "$freq" > "$cpufreq_path/scaling_max_freq" 2>/dev/null
-	if [ $? -eq 0 ]; then
-		if ! _uci_persist_cpu "" "$freq"; then
-			echo '{"error":"CPU max frequency applied but could not be persisted"}'
-			return
-		fi
-		printf '{"result":"ok","freq":%d}' "$freq"
-	else
-		echo '{"error":"failed to set max frequency"}'
-	fi
-}
-
-# Combined persistence RPC: apply both governor and max_freq, then persist to UCI
-# in a single transaction so the choice survives a reboot. Either field may be omitted.
-set_cpu_settings() {
-	local governor freq cpufreq_path avail_g
-	governor=$(echo "$1" | jsonfilter -e "@.governor" 2>/dev/null)
-	freq=$(echo "$1" | jsonfilter -e "@.freq" 2>/dev/null)
-
-	if [ -z "$governor" ] && [ -z "$freq" ]; then
-		echo '{"error":"missing governor and freq parameters"}'
-		return
-	fi
-
-	cpufreq_path=$(_find_cpufreq_policy)
-	[ -n "$cpufreq_path" ] || {
-		echo '{"error":"CPU frequency scaling is not available"}'
-		return
-	}
-
-	if [ -n "$freq" ] && ! _cpu_freq_allowed "$cpufreq_path" "$freq"; then
-		printf '{"error":"invalid frequency: %s"}' "$(_json_escape "$freq")"
-		return
-	fi
-
-	if [ -n "$governor" ]; then
-		avail_g=$(cat "$cpufreq_path/scaling_available_governors" 2>/dev/null)
-		if ! _cpu_governor_allowed "$cpufreq_path" "$governor"; then
-			printf '{"error":"invalid governor: %s"}' "$(_json_escape "$governor")"
-			return
-		fi
-	fi
-
-	# Raise the limit before switching governor. In particular, performance
-	# otherwise remains pinned to the old (lower) ceiling.
-	if [ -n "$freq" ]; then
-		echo "$freq" > "$cpufreq_path/scaling_max_freq" 2>/dev/null
-		if [ $? -ne 0 ]; then
-			echo '{"error":"failed to set max frequency"}'
-			return
-		fi
-	fi
-
-	if [ -n "$governor" ]; then
-		echo "$governor" > "$cpufreq_path/scaling_governor" 2>/dev/null
-		if [ $? -ne 0 ]; then
-			echo '{"error":"failed to set governor"}'
-			return
-		fi
-	fi
-
-	if ! _uci_persist_cpu "$governor" "$freq"; then
-		echo '{"error":"CPU settings applied but could not be persisted"}'
-		return
-	fi
-
-	local out='{"result":"ok"'
-	[ -n "$governor" ] && out="$out,\"governor\":\"$governor\""
-	[ -n "$freq" ] && out="$out,\"freq\":$freq"
-	printf '%s}' "$out"
-}
-
 get_vlan_offload() {
 	airoha_bridge_offload_supported || {
 		echo '{"supported":false,"enabled":0}'
@@ -1687,7 +1485,7 @@ get_dashboard() {
 
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getDashboard":{"ppe":"int"},"getTopology":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getCryptoInfo":{},"getWifiStats":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"int"},"setCpuSettings":{"governor":"str","freq":"int"}}'
+		echo '{"getStatus":{},"getDashboard":{"ppe":"int"},"getTopology":{},"getPpeEntries":{},"getTokenInfo":{},"getFrameEngine":{},"getCryptoInfo":{},"getWifiStats":{},"getVlanOffload":{},"setVlanOffload":{"enabled":"int"},"getPppoeOffload":{},"setPppoeOffload":{"enabled":"int"},"getFlowOffload":{},"setFlowOffload":{"enabled":"int"},"getApModeOffload":{},"setApModeOffload":{"enabled":"int"},"getDeviceMode":{}}'
 		;;
 	call)
 		case "$2" in
@@ -1723,18 +1521,6 @@ case "$1" in
 				;;
 			getCryptoInfo)
 				get_crypto_info
-				;;
-			setGovernor)
-				read input
-				set_governor "$input"
-				;;
-			setMaxFreq)
-				read input
-				set_max_freq "$input"
-				;;
-			setCpuSettings)
-				read input
-				set_cpu_settings "$input"
 				;;
 			getWifiStats)
 				airoha_wifi_stats_json

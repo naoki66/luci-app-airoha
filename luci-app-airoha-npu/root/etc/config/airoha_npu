@@ -1,3 +1,0 @@
-config cpu
-	option governor 'ondemand'
-	option max_freq '1200000'
