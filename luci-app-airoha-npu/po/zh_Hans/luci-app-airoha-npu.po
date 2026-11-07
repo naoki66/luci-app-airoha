@@ -873,3 +873,21 @@ msgstr "活跃会话"
 
 msgid "Cumulative IRQs"
 msgstr "加速累计"
+
+msgid "Core Load"
+msgstr "各核占用"
+
+msgid "Current Frequency"
+msgstr "当前频率"
+
+msgid "Average"
+msgstr "平均"
+
+msgid "Processor"
+msgstr "处理器"
+
+msgid "Dropped"
+msgstr "丢弃"
+
+msgid "Load Average"
+msgstr "平均负载"

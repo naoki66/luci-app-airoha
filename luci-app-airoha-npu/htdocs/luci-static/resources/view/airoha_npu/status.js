@@ -10,8 +10,6 @@ var callNpuStatus = rpc.declare({ object: 'luci.airoha_npu', method: 'getStatus'
 var callDashboard = rpc.declare({ object: 'luci.airoha_npu', method: 'getDashboard', params: ['ppe'] });
 var callPpeEntries = rpc.declare({ object: 'luci.airoha_npu', method: 'getPpeEntries' });
 var callTokenInfo = rpc.declare({ object: 'luci.airoha_npu', method: 'getTokenInfo' });
-var callSetGovernor = rpc.declare({ object: 'luci.airoha_npu', method: 'setGovernor', params: ['governor'] });
-var callSetMaxFreq = rpc.declare({ object: 'luci.airoha_npu', method: 'setMaxFreq', params: ['freq'] });
 // VLAN Offload is an independent switch again (it owns the VLAN passthrough
 // pair), so its declares are live here. PPPoE passthrough is owned by AP Mode
 // Acceleration on this page - nothing below drives setPppoeOffload, so this
@@ -27,19 +25,30 @@ var callGetTopology = rpc.declare({ object: 'luci.airoha_npu', method: 'getTopol
 var callGetWifiStats = rpc.declare({ object: 'luci.airoha_npu', method: 'getWifiStats' });
 var callFrameEngine = rpc.declare({ object: 'luci.airoha_npu', method: 'getFrameEngine' });
 var callCryptoInfo = rpc.declare({ object: 'luci.airoha_npu', method: 'getCryptoInfo' });
-var callSetCpuSettings = rpc.declare({ object: 'luci.airoha_npu', method: 'setCpuSettings', params: ['governor', 'freq'] });
 
-var CPU_MIN_FREQ_KHZ = 500000;
-var CPU_MAX_FREQ_KHZ = 1400000;
-
-// Tracks whether the user has changed a CPU control select without saving yet.
-// While dirty, the 5s poll must NOT overwrite the selects with live sysfs values.
-var cpuSettingsDirty = false;
+/* The CPU governor / max-freq setters (setGovernor, setMaxFreq,
+ * setCpuSettings) are gone from this view on purpose: this page is a status
+ * surface, and a control that writes scaling_governor is the one thing on it
+ * that can silently make the router slower. The backend still exposes all
+ * three RPCs, so a board that really wants them can be given a settings page
+ * without touching this file. What the page keeps is the *reading* -
+ * current frequency, governor and range - which is what an operator actually
+ * opens it for. */
 
 /* ── Shared state vocabulary ────────────────────────────────────────────── */
 
 function isEnabled(value) {
 	return value === true || value === 1 || value === '1';
+}
+
+/* The frequency the cores are actually running at: the hardware clock
+ * (cpuinfo_cur_freq) when the driver exports it, the scaling target
+ * (scaling_cur_freq) otherwise. On the fixed-clock boards this app ships on
+ * there is nothing to read and the row is simply absent. */
+function cpuCurrentFreq(st) {
+	st = st || {};
+	var hw = Number(st.cpu_hw_freq) || 0;
+	return hw > 0 ? hw : (Number(st.cpu_cur_freq) || 0);
 }
 
 function isBridgeOffloadBlocked(mode) {
@@ -275,29 +284,86 @@ function updateSummary(st, ti) {
 	SUMMARY_IDS.forEach(function(id) { if (tiles[id]) grid.appendChild(tiles[id]); });
 }
 
-/* ── CPU frequency ──
- * The "which frequency is current" rule (hardware clock first, scaling target
- * as the fallback) now lives in the backend, which uses it for the history
- * sample as well; the view only reads cpu_min_freq / cpu_max_freq for the
- * chart scale. */
+/* ── CPU cards ──
+ * What is left of the old "CPU Control" card is a reading, not a control:
+ * frequency, governor and range are shown where they belong (inside the info
+ * card and on the history curve), and the governor / max-freq selects plus
+ * their Save button are gone. That card used to be the reason this section
+ * carried a dead slot: on a board whose kernel exposes no cpufreq policy it
+ * degraded into a disabled select pair under the line "CPU frequency scaling
+ * is not available on this board" - a permanent warning about a feature the
+ * page no longer offers.
+ *
+ * The section is therefore built as a *list of cards that may or may not
+ * exist*, laid out by the auto-fit `.ai-grid--2`. One card left in a row
+ * spans the full width, so dropping the frequency cards on a fixed-clock
+ * board reflows the section instead of leaving a hole. */
 function renderCpuInfo(st) {
 	st = st || {};
+	var rows = [
+		aui.row(_('Model'), st.soc_compat || '—'),
+		aui.row(_('Architecture'), st.cpu_arch || '—'),
+		aui.row(_('Core Count'), (st.cpu_count || 0))
+	];
+	/* Both extra rows are readings. On a board without cpufreq they are simply
+	 * absent - no placeholder, no explanation: a status page does not owe the
+	 * user a warning about telemetry it never had. */
+	/* The clock and the governor that shapes it are one fact, so they share one
+	 * row: "1200 MHz · ondemand". Two rows made this card a row taller than the
+	 * core-load card beside it on every DVFS board. */
+	var freq = cpuCurrentFreq(st);
+	var gov = (st.cpu_governor && st.cpu_governor !== 'unknown') ? governorLabel(st.cpu_governor) : '';
+	if (freq)
+		rows.push(aui.row(_('Current Frequency'), aui.fmtFreq(freq) + (gov ? ' · ' + gov : '')));
+	/* Two readings the page had nowhere else to put, and the ones that make the
+	 * card the same height as the per-core bars next to it. Both come from a
+	 * single /proc read in the backend; a backend that predates them simply
+	 * leaves the rows out. */
+	var loadavg = String(st.loadavg == null ? '' : st.loadavg).trim();
+	if (loadavg)
+		rows.push(aui.row(_('Load Average'), loadavg.split(/\s+/).join(' / ')));
+	if (Number(st.sys_uptime) > 0)
+		rows.push(aui.row(_('Uptime'), aui.fmtUptime(st.sys_uptime)));
+	rows.push(aui.row(_('Temperature'), (st.cpu_temp && st.cpu_temp !== 'N/A') ? st.cpu_temp : 'N/A'));
 	return aui.card({
-		name: _('CPU Info'), tag: _('CPU model / temperature'), accent: 'var(--ai-npu)',
-		body: [
-			aui.row(_('Model'), st.soc_compat || ''),
-			aui.row(_('Architecture'), st.cpu_arch || ''),
-			aui.row(_('Core Count'), (st.cpu_count || 0)),
-			aui.row(_('Temperature'), (st.cpu_temp && st.cpu_temp !== 'N/A') ? st.cpu_temp : 'N/A')
-		]
+		name: _('CPU Info'),
+		accent: 'var(--ai-npu)',
+		body: rows
 	});
 }
 
-function renderFreqCard(st) {
+/* Instant per-core utilisation, drawn as one bar per thread from the newest
+ * backend sample. It is the "state" half of the pair whose "trend" half is the
+ * usage history card below - the same split every OS task monitor uses. */
+function renderCoreLoad(st) {
 	st = st || {};
+	var sample = loadHistory.length ? loadHistory[loadHistory.length - 1].u : [];
+	var cores = Math.max(Number(st.cpu_count) || 0, sample.length);
+	if (!cores)
+		return aui.card({ name: _('Core Load'), accent: 'var(--ai-load)', body: aui.empty(_('No data')) });
+
+	var bars = [], sum = 0, cnt = 0;
+	for (var c = 0; c < cores; c++) {
+		var v = isPercent(sample[c]) ? sample[c] : null;
+		if (v !== null) { sum += v; cnt++; }
+		bars.push(aui.bar({
+			title: 'cpu' + c,
+			right: (v === null) ? '—' : aui.fmtPct(v),
+			pct: (v === null) ? 0 : v,
+			accent: coreColor(c)
+		}));
+	}
+	/* The bars live in their own flex box so the card can distribute whatever
+	 * height the info card next to it dictates: the gaps between the bars grow,
+	 * the average row stays pinned to the bottom edge. */
+	var footer = E('div', {
+		'style': 'margin-top:var(--ds-sp-2);padding-top:var(--ds-sp-2);border-top:1px solid var(--ds-border)'
+	}, [
+		aui.row(_('Average'), cnt ? aui.fmtPct(sum / cnt) : '—')
+	]);
 	return aui.card({
-		name: _('CPU Control'), accent: 'var(--ds-ok)',
-		body: E('div', { 'id': 'cpu-control-content' }, [ renderControlSettings(st) ])
+		name: _('Core Load'), accent: 'var(--ai-load)', cls: 'ai-card--fill',
+		body: [ E('div', { 'class': 'ai-bars-fill' }, bars), footer ]
 	});
 }
 
@@ -327,7 +393,6 @@ var HIST_WINDOW = 120;
  * real absence (>= 40 s) is worth a break. */
 var HIST_GAP_MS = 40000;
 
-var freqHistory = [];   /* [ { t: ms, v: kHz } ], oldest first */
 var loadHistory = [];   /* [ { t: ms, u: [pct|null, ...] } ], oldest first */
 
 function histNum(v) {
@@ -346,19 +411,6 @@ function histNormalise(samples) {
 /* Both parsers return null - not an empty array - when the payload is missing
  * or unusable, so the caller can keep the curve that is already on screen: one
  * failed poll must never blank 120 valid points. */
-function parseFreqHistory(raw) {
-	if (!Array.isArray(raw)) return null;
-	var out = [];
-	for (var i = 0; i < raw.length; i++) {
-		var s = raw[i];
-		if (!Array.isArray(s)) continue;
-		var t = histNum(s[0]), v = histNum(s[1]);
-		if (!t || !v || v <= 0) continue;
-		out.push({ t: t * 1000, v: v });
-	}
-	return histNormalise(out);
-}
-
 function parseLoadHistory(raw) {
 	if (!Array.isArray(raw)) return null;
 	var out = [];
@@ -387,9 +439,7 @@ function parseLoadHistory(raw) {
 function adoptHistory(st) {
 	var h = st && st.cpu_history;
 	if (!h) return;
-	var f = parseFreqHistory(h.freq);
 	var l = parseLoadHistory(h.load);
-	if (f) freqHistory = f;
 	if (l) loadHistory = l;
 }
 
@@ -545,97 +595,6 @@ function attachChartHover(o) {
 
 	svg.addEventListener('mousemove', show);
 	svg.addEventListener('mouseleave', hide);
-}
-
-function renderFreqChart(min, max, containerW) {
-	var lo = (min > 0) ? min : CPU_MIN_FREQ_KHZ;
-	var hi = (max > lo) ? max : CPU_MAX_FREQ_KHZ;
-	var n = freqHistory.length;
-	if (!n) return E('div', { 'class': 'ai-empty' }, _('No data'));
-
-	var W = Math.round(containerW > 0 ? containerW : 600);
-	var H = 240, padX = 6, padT = 14, padB = 6;
-	var innerW = W - padX * 2, innerH = H - padT - padB;
-	var span = hi - lo;
-	function xOf(i) { return padX + (HIST_WINDOW - n + i) / (HIST_WINDOW - 1) * innerW; }
-	function yOf(f) {
-		var c = Math.min(Math.max(f, lo), hi);
-		return padT + innerH - (c - lo) / span * innerH;
-	}
-	var xs = [], ys = [];
-	for (var i = 0; i < n; i++) {
-		xs.push(xOf(i));
-		ys.push(yOf(freqHistory[i].v));
-	}
-
-	/* Split into runs of consecutive samples. A run boundary is unmeasured
-	 * time, and the plot has to show it as a break - a single polyline over
-	 * the whole buffer would bridge an hour of nothing as if it were five
-	 * seconds. */
-	var runs = [], run = [];
-	for (var i = 0; i < n; i++) {
-		if (i && freqHistory[i].t - freqHistory[i - 1].t > HIST_GAP_MS) { runs.push(run); run = []; }
-		run.push(i);
-	}
-	if (run.length) runs.push(run);
-
-	var body = [];
-	for (var r = 0; r < runs.length; r++) {
-		var idx = runs[r], pts = [];
-		for (var k = 0; k < idx.length; k++)
-			pts.push(xs[idx[k]].toFixed(1) + ',' + ys[idx[k]].toFixed(1));
-		/* A lone sample has no span to stroke: draw the dot only. The old
-		 * chart stretched it into a full-width line, which read as the whole
-		 * window of steady history on the very first poll. The newest sample
-		 * already gets the head dot below, so it is not drawn twice. */
-		if (idx.length === 1) {
-			if (idx[0] !== n - 1)
-				body.push(svgEl('circle', {
-					'cx': xs[idx[0]].toFixed(1), 'cy': ys[idx[0]].toFixed(1),
-					'r': '2.5', 'style': 'fill:var(--ds-ok)'
-				}));
-			continue;
-		}
-		/* Close each area at its own ends, not the chart edges, otherwise the
-		 * polygon streaks diagonally across a gap or across empty space. */
-		var area = pts.slice();
-		area.push(xs[idx[idx.length - 1]].toFixed(1) + ',' + (padT + innerH));
-		area.unshift(xs[idx[0]].toFixed(1) + ',' + (padT + innerH));
-		body.push(svgEl('polygon', { 'points': area.join(' '), 'style': 'fill:var(--ds-ok);opacity:.12;stroke:none' }));
-		body.push(svgEl('polyline', {
-			'points': pts.join(' '),
-			'style': 'fill:none;stroke:var(--ds-ok);stroke-width:2;stroke-linejoin:round;stroke-linecap:round'
-		}));
-	}
-	/* Head dot on the newest sample, whatever run it belongs to. */
-	body.push(svgEl('circle', {
-		'cx': xs[n - 1].toFixed(1), 'cy': ys[n - 1].toFixed(1),
-		'r': '3', 'style': 'fill:var(--ds-ok)'
-	}));
-
-	var gridStyle = 'stroke:var(--ds-border);stroke-width:1;stroke-dasharray:3 3';
-	var lblStyle = 'fill:var(--ds-text-muted);font-size:9px;font-family:var(--ds-mono)';
-	var svg = svgEl('svg', {
-		'viewBox': '0 0 ' + W + ' ' + H,
-		'width': '100%', 'height': H,
-		'style': 'display:block;cursor:crosshair',
-		'role': 'img', 'aria-label': _('Frequency History')
-	}, [
-		svgEl('line', { 'x1': padX, 'y1': padT, 'x2': W - padX, 'y2': padT, 'style': gridStyle }),
-		svgEl('line', { 'x1': padX, 'y1': padT + innerH, 'x2': W - padX, 'y2': padT + innerH, 'style': gridStyle }),
-		svgEl('text', { 'x': padX + 2, 'y': padT - 4, 'style': lblStyle }, [ document.createTextNode(aui.fmtFreq(hi)) ]),
-		svgEl('text', { 'x': padX + 2, 'y': padT + innerH - 4, 'style': lblStyle }, [ document.createTextNode(aui.fmtFreq(lo)) ])
-	].concat(body));
-	var wrap = E('div', { 'style': 'position:relative' }, [ svg ]);
-	attachChartHover({
-		svg: svg, wrap: wrap, xs: xs,
-		guideTop: padT, guideBottom: padT + innerH,
-		dotColors: [ 'var(--ds-ok)' ],
-		time: function(i) { return freqHistory[i].t; },
-		points: function(i) { return [ { x: xs[i], y: ys[i] } ]; },
-		rows: function(i) { return [ { value: aui.fmtFreq(freqHistory[i].v), color: 'var(--ds-ok)' } ]; }
-	});
-	return wrap;
 }
 
 /* ── CPU usage history chart ──
@@ -818,20 +777,9 @@ function renderLoadChart(containerW) {
 	return wrap;
 }
 
-function renderLoadCard() {
-	var host = document.getElementById('cpu-load-history-content');
-	var w = (host && host.clientWidth) || 0;
-	return E('div', {}, [ renderLoadLegend(), renderLoadChart(w) ]);
-}
-
-function renderLoadHistoryCard() {
-	var host = document.getElementById('cpu-load-history-content');
-	if (!host) return;
-	host.innerHTML = '';
-	host.appendChild(renderLoadCard());
-}
-
-/* ── CPU control settings (governor / max freq + save) ── */
+/* ── Governor label ──
+ * A read-only vocabulary now: the strings are the kernel's own governor names,
+ * translated where the catalogue has them. */
 function governorLabel(governor) {
 	var labels = {
 		conservative: _('conservative'), ondemand: _('ondemand'), performance: _('performance'),
@@ -840,139 +788,37 @@ function governorLabel(governor) {
 	return labels[governor] || governor;
 }
 
-function splitList(s) {
-	return String(s == null ? '' : s).trim().split(/\s+/).filter(Boolean);
-}
-
-/* Map the backend cpufreq reason code to its translatable string. */
-function cpuReasonText(reason) {
-	if (reason === 'no_governors') return _('No CPU governors reported by the kernel');
-	if (reason === 'no_frequencies') return _('No selectable CPU frequencies reported by the kernel');
-	return _('CPU frequency scaling is not available on this board');
-}
-
-/* Returns '' while cpufreq is usable, otherwise the reason text to show. A
- * missing availability key fails open (a backend that predates the key must
- * keep working); the key is only treated as "unavailable" when the kernel also
- * reported nothing to choose from. */
-function cpufreqReason(st) {
-	st = st || {};
-	var avail = st.cpu_cpufreq_available;
-	if (avail !== undefined && avail !== null)
-		return isEnabled(avail) ? '' : cpuReasonText(st.cpu_cpufreq_reason);
-	if (splitList(st.cpu_avail_governors).length || splitList(st.cpu_avail_freqs).length)
-		return '';
-	return cpuReasonText(st.cpu_cpufreq_reason);
-}
-
-/* Build a CPU control <select>. It is ALWAYS a real select element (never a
- * bare text node) so the poll path and the Save handler can always find it.
- * When the available list is empty the live value is seeded so the control
- * still displays the current setting; when nothing is known at all it becomes
- * a disabled placeholder carrying the backend reason as its only option. */
-function cpuSelect(id, values, current, placeholder, labelFn) {
-	var attrs = {
-		'id': id, 'class': 'cbi-input-select',
-		'change': function() { cpuSettingsDirty = true; updateCpuSettingsHint(); }
-	};
-	var opts;
-	if (values && values.length) {
-		opts = values.map(function(v) {
-			return E('option', { 'value': v, 'selected': String(v) === String(current) ? '' : null }, labelFn(v));
-		});
-	} else if (current !== undefined && current !== null && String(current) !== '') {
-		opts = [ E('option', { 'value': String(current), 'selected': '' }, labelFn(current)) ];
-	} else {
-		opts = [ E('option', { 'value': '', 'selected': '' }, placeholder || 'N/A') ];
-	}
-	if (!(values && values.length)) attrs.disabled = '';
-	return E('select', attrs, opts);
-}
-
-function renderGovSelect(avail, active, reason) {
-	return cpuSelect('cpu-governor-select', splitList(avail), active || '', reason, governorLabel);
-}
-
-function renderMaxFreqSelect(avail, cur, reason) {
-	var freqs = splitList(avail).map(function(f) { return parseInt(f, 10); })
-		.filter(function(f) { return isFinite(f) && f >= CPU_MIN_FREQ_KHZ && f <= CPU_MAX_FREQ_KHZ; })
-		.filter(function(f, i, values) { return values.indexOf(f) === i; });
-	var activeNum = parseInt(cur, 10);
-	// The select must mirror the live kernel value: when scaling_max_freq is
-	// missing from the advertised list (quirky OPP table), inject it as an
-	// option instead of silently clamping the display to a different value.
-	if (isFinite(activeNum) && activeNum >= CPU_MIN_FREQ_KHZ && activeNum <= CPU_MAX_FREQ_KHZ && freqs.indexOf(activeNum) < 0)
-		freqs.push(activeNum);
-	freqs.sort(function(a, b) { return a - b; });
-	var active = isFinite(activeNum) && activeNum > 0 ? String(activeNum)
-		: (freqs.length ? String(freqs[freqs.length - 1]) : '');
-	return cpuSelect('cpu-maxfreq-select', freqs.map(String), active, reason, function(f) {
-		return Math.round(parseInt(f, 10) / 1000) + ' MHz';
+/* ── CPU section assembly ──
+ * Everything here is fixed for the life of the page: the utilisation curve on
+ * top, then the two cards. There is no frequency curve and no frequency card
+ * any more - the boards this app ships on are fixed-clock, and an OPP graph of
+ * a constant is a straight line that tells nobody anything - so nothing in this
+ * section depends on board capability any more, and the poll can refresh the
+ * card bodies in place instead of re-laying the grid. */
+function renderLoadChartCard() {
+	var host = document.getElementById('cpu-load-history-content');
+	var w = (host && host.clientWidth) || 0;
+	return aui.card({
+		name: _('CPU Usage History'), accent: 'var(--ai-cpu)',
+		body: E('div', { 'id': 'cpu-load-history-chart' }, [
+			renderLoadLegend(), renderLoadChart(w)
+		])
 	});
 }
 
-function updateCpuSettingsHint() {
-	var hint = document.getElementById('cpu-settings-hint');
-	if (!hint) return;
-	if (cpuSettingsDirty) { hint.textContent = _('Unsaved changes'); hint.style.color = 'var(--ds-warn)'; }
-	else { hint.textContent = ''; hint.style.color = ''; }
-}
-
-function renderControlSettings(st) {
-	// Container rebuilt from live status → selections reflect what is currently applied.
-	st = st || {};
-	cpuSettingsDirty = false;
-
-	var reason = cpufreqReason(st);
-
-	var saveBtn = E('button', {
-		'id': 'cpu-settings-save',
-		'class': 'ai-btn ai-btn--primary',
-		'title': reason || null,
-		'click': function(ev) {
-			var btn = ev.target;
-			var gs = document.getElementById('cpu-governor-select');
-			var fs = document.getElementById('cpu-maxfreq-select');
-			if (!gs || !fs || gs.disabled || fs.disabled) {
-				ui.addNotification(null, E('p', {}, reason || _('No CPU frequency controls are available on this board')), 'warning');
-				return;
-			}
-			btn.disabled = true;
-			callSetCpuSettings(gs.value, parseInt(fs.value)).then(function(r) {
-				btn.disabled = false;
-				if (r && r.error) {
-					ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
-				} else {
-					cpuSettingsDirty = false;
-					updateCpuSettingsHint();
-					ui.addNotification(null, E('p', {}, _('CPU settings saved — they will persist after a reboot')), 'info');
-				}
-			}).catch(function() { btn.disabled = false; });
-		}
-	}, _('Save'));
-	// The Save button is always rendered; it is only disabled while there is
-	// nothing selectable, and its title explains why.
-	if (reason) saveBtn.disabled = true;
-
-	var hint = E('span', { 'id': 'cpu-settings-hint', 'class': 'ai-muted' }, '');
-	var note = E('div', {
-		'id': 'cpu-cpufreq-note', 'class': 'ai-hint',
-		'style': 'flex-basis:100%;margin:0'
-	}, reason || '');
-
-	return E('div', { 'class': 'ai-form' }, [
-		E('div', { 'class': 'ai-field' }, [
-			E('label', { 'class': 'ai-field-label', 'for': 'cpu-governor-select' }, _('Governor')),
-			renderGovSelect(st.cpu_avail_governors, st.cpu_governor, reason)
+function renderCpuSection(st) {
+	var body = [
+		E('div', { 'class': 'ai-grid ai-grid--2' }, [
+			E('div', { 'id': 'cpu-load-history-content' }, [ renderLoadChartCard() ])
 		]),
-		E('div', { 'class': 'ai-field' }, [
-			E('label', { 'class': 'ai-field-label', 'for': 'cpu-maxfreq-select' }, _('Max Freq')),
-			renderMaxFreqSelect(st.cpu_avail_freqs, st.cpu_max_freq, reason)
-		]),
-		saveBtn,
-		hint,
-		note
-	]);
+		E('div', {
+			'class': 'ai-grid ai-grid--2', 'style': 'margin-top:var(--ds-sp-2)'
+		}, [
+			E('div', { 'id': 'cpu-info-content' }, [ renderCpuInfo(st) ]),
+			E('div', { 'id': 'cpu-load-content' }, [ renderCoreLoad(st) ])
+		])
+	];
+	return E('div', { 'id': 'cpu-body' }, body);
 }
 
 /* ── Offload switches ── */
@@ -1122,11 +968,18 @@ function renderEthernetPorts(topo) {
 			if (p.carrier === 1 && p.speed_mbps > 0 && p.speed_up_mbps > 0)
 				speed = speedTag(p.speed_mbps) + '\u2193 / ' + speedTag(p.speed_up_mbps) + '\u2191';
 			else if (p.carrier === 1 && p.speed_mbps > 0)
-				speed = p.speed_mbps + ' Mbps';
+				// Same port capability tag the card labels use: "10G" next to a
+				// column header that already says 协商速率 / 双工, instead of the
+				// raw "10000 Mbps" the column used to carry.
+				speed = speedTag(p.speed_mbps) || (p.speed_mbps + ' Mbps');
 			var path = (p.kind === 'gsw' ? 'GSW' : 'GDM') + p.reg;
 			if (p.nbq !== null && p.nbq !== undefined) path += ' / NBQ' + p.nbq;
+			/* The name alone. It already carries the netdev for every board this
+			 * ships on ("10G WAN" for wan, "1G LAN2" for lan2), so the old
+			 * "10G WAN (wan)" printed the same word twice; the netdev is still
+			 * one hover away, which is where a technical token belongs. */
 			return [
-				humanPortName(p, topo) + ' (' + p.netdev + ')',
+				E('span', { 'title': p.netdev }, humanPortName(p, topo)),
 				path, aui.pill(state, up ? 'ok' : ''),
 				speed + (p.carrier === 1 && p.duplex ? ' / ' + p.duplex : ''),
 				bytes(p.rx_bytes) + ' / ' + bytes(p.tx_bytes),
@@ -1255,19 +1108,31 @@ function renderGdmCard(g, topo) {
 	var rcDrop = Number(g.rx_rc_drop) || 0, overDrop = Number(g.rx_over_drop) || 0;
 	var errDrop = Number(g.rx_error_drop) || 0;
 	var port = gdmPort(topo, g.reg);
+
+	/* A GDM card carries the same link state as the port card above it: without
+	 * the pill, a port whose PHY is down was indistinguishable from an idle one
+	 * that is simply carrying no traffic - the counters are zero in both cases.
+	 * The port name moves out of the tag (the pill needs it) and into the card
+	 * body, where it reads as the port this MAC serves. */
+	var up = port ? port.carrier === 1 : false;
+	var drops = txDrop + rxDrop + rcDrop + overDrop + errDrop;
+	/* GDM1 fronts the internal switch and its topology label lists every LAN
+	 * behind it ("LAN · 10G LAN2, 1G LAN3, 1G LAN4"), which does not fit beside
+	 * a row label in a quarter-width card. The MAC's identity is enough here;
+	 * the individual LANs have their own cards in the ports section. */
+	var pname = !port ? _('No port')
+		: isSwitchCpuPort(port) ? _('Internal Switch') : humanPortName(port, topo);
 	var body = [
+		aui.row(_('Port'), pname),
 		aui.row(_('TX packets'), aui.fmtK(tx)),
 		aui.row(_('RX packets'), aui.fmtK(rx))
 	];
-	if (txDrop > 0) body.push(aui.row(_('TX dropped'), aui.fmtK(txDrop), 'ai-err'));
-	if (rxDrop > 0) body.push(aui.row(_('RX dropped'), aui.fmtK(rxDrop), 'ai-err'));
-	if (rcDrop > 0) body.push(aui.row(_('RX resource dropped'), aui.fmtK(rcDrop), 'ai-err'));
-	if (overDrop > 0) body.push(aui.row(_('RX overflow dropped'), aui.fmtK(overDrop), 'ai-err'));
-	if (errDrop > 0) body.push(aui.row(_('RX error dropped'), aui.fmtK(errDrop), 'ai-err'));
+	if (drops > 0) body.push(aui.row(_('Dropped'), aui.fmtK(drops), 'ai-err'));
 	return aui.card({
 		name: 'GDM' + g.reg,
-		tag: port ? humanPortName(port, topo) : _('No port'),
-		accent: (tx > 0 || rx > 0) ? 'var(--ai-npu)' : 'var(--ds-border-strong)',
+		tag: port ? aui.pill(up ? _('Link up') : _('Link down'), up ? 'ok' : '') : null,
+		accent: drops > 0 ? 'var(--ds-warn)'
+			: (tx > 0 || rx > 0) ? 'var(--ai-npu)' : 'var(--ds-border-strong)',
 		body: body
 	});
 }
@@ -1335,11 +1200,22 @@ function renderCdmCard(c, split) {
 		// channel's rows made the cards different heights and made a real 0 read
 		// like a field that was never collected.
 		aui.row(_('HW fast path'), aui.fmtK(c.rx_hwf_fast)),
-		aui.row(_('Per-CPU RX'), perCpu.map(function(v) { return aui.fmtK(v); }).join(' · ')),
-		dropRow(_('CPU dropped'), c.rx_cpu_drop),
-		dropRow(_('HW dropped'), c.rx_hwf_drop),
-		dropRow(_('HW fast dropped'), c.rx_hwf_fast_drop)
+		aui.row(_('Per-CPU RX'), perCpu.map(function(v) { return aui.fmtK(v); }).join(' · '))
 	];
+	/* The three drop channels keep their own row while any of them is non-zero,
+	 * so a real drop still says which channel produced it. When all three are
+	 * zero - the normal case, and the one both cards are almost always in -
+	 * they collapse into a single "Dropped 0" line instead of three rows of
+	 * zeros. Both cards stay the same height in that case, which is what the
+	 * three-row version was protecting. */
+	var dropTotal = (Number(c.rx_cpu_drop) || 0) + (Number(c.rx_hwf_drop) || 0) + (Number(c.rx_hwf_fast_drop) || 0);
+	if (dropTotal > 0) {
+		body.push(dropRow(_('CPU dropped'), c.rx_cpu_drop));
+		body.push(dropRow(_('HW dropped'), c.rx_hwf_drop));
+		body.push(dropRow(_('HW fast dropped'), c.rx_hwf_fast_drop));
+	} else {
+		body.push(aui.row(_('Dropped'), '0'));
+	}
 	// CDM1 is the CPU port of PPE engine 1 and CDM2 of engine 2, so each card
 	// also carries the flow-table slice counted by that engine. The split comes
 	// from the PPE probe (20 s cadence) and is undefined until it lands, and on
@@ -1385,10 +1261,11 @@ function renderPseBufferCard(pse) {
 	};
 	if (peakPct !== null) barOpts.peak = peakPct;
 	var body = [ aui.bar(barOpts) ];
+	/* "Used 41 / Total 12.06 K · Share 0.3%" was three words too many for a card
+	 * that now shares its row with the GDM MACs; the label already says Peak. */
 	if (peakPct !== null)
 		body.push(aui.row(_('Peak'),
-			_('Used') + ' ' + aui.fmtK(peak) + ' / ' + _('Total') + ' ' + aui.fmtK(total)
-			+ ' · ' + _('Share') + ' ' + aui.fmtPct(peakPct, 1)));
+			aui.fmtK(peak) + ' / ' + aui.fmtK(total) + ' · ' + aui.fmtPct(peakPct, 1)));
 	return aui.card({
 		name: _('PSE shared buffer'),
 	/* Current usage is near zero almost all the time, so the card tag shows the
@@ -1425,13 +1302,15 @@ function renderFrameEngine(fe, topo, split) {
 		return g && (!knownPorts || gdmPort(topo, g.reg));
 	});
 	var cdm = Array.isArray(fe.cdm) ? fe.cdm : [];
-	var blocks = [ head, renderPseBufferCard(fe.pse) ];
-	if (gdm.length) {
-		blocks.push(E('div', { 'class': 'ai-subhead' }, _('GDM Ports')));
-		blocks.push(E('div', { 'class': 'ai-grid ai-grid--3' }, gdm.map(function(g) {
-			return renderGdmCard(g, topo);
-		})));
-	}
+	/* The PSE pool used to sit alone on a full-width card, which left a long
+	 * empty bar across the page for a number that is 0 almost always. It shares
+	 * the first row with the GDM MACs instead: same height as its neighbours,
+	 * and the row reads as "the frame engine's resources and the ports they
+	 * serve" - which is also why the separate "GDM Ports" subhead is gone. */
+	var row = [ renderPseBufferCard(fe.pse) ].concat(gdm.map(function(g) {
+		return renderGdmCard(g, topo);
+	}));
+	var blocks = [ head, E('div', { 'class': 'ai-grid ai-grid--4' }, row) ];
 	if (cdm.length) {
 		blocks.push(E('div', { 'class': 'ai-subhead' }, _('CDM Engines')));
 		blocks.push(E('div', { 'class': 'ai-grid ai-grid--3' }, cdm.map(function(c) {
@@ -1621,7 +1500,11 @@ function ppeRows(entries) {
 		var eth = e.eth || '';
 		if (eth === '00:00:00:00:00:00->00:00:00:00:00:00') eth = '-';
 		var state = e.state === 'BND' ? aui.badge(e.state, 'bnd') : aui.badge(e.state, 'unb');
-		return E('tr', {}, [
+		/* data-state drives the row tint in the stylesheet. BND ("bound") is the
+		 * state the reader actually wants to see - it means the hardware, not the
+		 * CPU, is carrying that flow - and it was one small badge among nine
+		 * columns before. */
+		return E('tr', { 'data-state': e.state || '' }, [
 			E('td', { 'class': 'ai-num', 'data-label': _('Index') }, e.index),
 			E('td', { 'data-label': _('State') }, state),
 			E('td', { 'data-label': _('Type') }, e.type + (e.proto ? ' ' + e.proto : '')),
@@ -1737,12 +1620,6 @@ return view.extend({
 		// backend that predates the split it is the only one of the two present.
 		var latestPpeSplit = (typeof ppe.ppe1 !== 'undefined' || typeof ppe.zero_l2 !== 'undefined') ? ppe : null;
 		var updatedEl = null;
-		// Last cpufreq reason, so the poll can rebuild the control container when
-		// the board's cpufreq availability changes. Null forces one rebuild once
-		// the live status lands (the controls always exist, so their presence can
-		// no longer signal "not rendered yet").
-		var prevCpuReason = null;
-
 		function markUpdated() {
 			if (updatedEl)
 				updatedEl.textContent = _('Updated %s').format(new Date().toLocaleTimeString());
@@ -1759,34 +1636,34 @@ return view.extend({
 		var view = E('div', { 'class': 'cbi-map airoha-page' }, [
 			E('h2', {}, _('Airoha SoC Status')),
 
+			/* The freshness stamp. It was already built and updated on every
+			 * poll but never inserted, so a 10 s-polling page gave the reader no
+			 * way to tell a live reading from a frozen one. It rides in the
+			 * toolbar row under the title, right-aligned, where a dashboard
+			 * usually puts it. */
+			E('div', {
+				'class': 'ai-toolbar',
+				'style': 'margin:0 0 var(--ds-sp-3)'
+			}, [
+				E('span', { 'class': 'ai-spacer' }),
+				updatedEl
+			]),
+
+			// Processor first: it is the section that changes every poll, and the
+			// ports below it are a wiring map that only changes when a cable does.
+			// The body is built by renderCpuSection(), which is capability-driven:
+			// a board without cpufreq telemetry simply gets fewer cards and the
+			// auto-fit grid reflows, instead of showing a disabled control block
+			// with a "not supported" line under it.
+			aui.section({
+				title: _('Processor'),
+				body: renderCpuSection(st)
+			}),
+
 			aui.section({
 				title: _('Ethernet Ports'),
 				body: E('div', { 'id': 'ethernet-ports' }, renderEthernetPorts(topo))
 			}),
-
-		// CPU Frequency
-				aui.section({
-					title: _('CPU Frequency'),
-					body: E('div', {}, [
-						E('div', { 'class': 'ai-grid ai-grid--2' }, [
-							E('div', { 'id': 'cpu-info-content' }, [ renderCpuInfo(st) ]),
-							E('div', { 'id': 'cpu-freq-card' }, [ renderFreqCard(st) ])
-						]),
-						E('div', { 'class': 'ai-grid ai-grid--2', 'style': 'margin-top:var(--ds-sp-2)' }, [
-							aui.card({
-								name: _('Frequency History'), accent: 'var(--ai-npu)',
-								body: E('div', { 'id': 'cpu-history-content' }, [ renderFreqChart(st.cpu_min_freq, st.cpu_max_freq) ])
-							}),
-							// The usage curve is what makes the frequency steps above
-							// readable, so the two charts share a row and the same
-							// sample spacing (one point per 10 s).
-							aui.card({
-								name: _('CPU Usage History'), accent: 'var(--ai-cpu)',
-								body: E('div', { 'id': 'cpu-load-history-content' }, [ renderLoadCard() ])
-							})
-						])
-					])
-				}),
 
 			// NPU and hardware offload controls/status.
 			aui.section({
@@ -1852,43 +1729,23 @@ return view.extend({
 			}
 			updateSummary(st, ti);
 
-			// CPU info — always re-render (just text rows, no user interaction)
-			var ci = document.getElementById('cpu-info-content');
-			if (ci) { ci.innerHTML = ''; ci.appendChild(renderCpuInfo(st)); }
-
-			// History charts — the backend sampled both ring buffers as part of
-			// this very reply, so the curves track the same poll that updated
-			// the live values above. No extra RPC, no storage, no seeding.
+			// CPU. History first: it fills loadHistory, which the core-load card
+			// and the curve both read, so both are refreshed from this round's
+			// samples and not the previous round's.
 			adoptHistory(st);
-			var hc = document.getElementById('cpu-history-content');
-			if (hc) { hc.innerHTML = ''; hc.appendChild(renderFreqChart(st.cpu_min_freq, st.cpu_max_freq, hc.clientWidth)); }
-			renderLoadHistoryCard();
-
-			// Control settings — the selects now always exist, so their presence can
-			// no longer signal "not rendered yet". Rebuild the container whenever the
-			// board's cpufreq availability/reason changes (cpufreq appearing or
-			// disappearing between polls); otherwise update the live values in place,
-			// unless the user has unsaved changes.
-			var cpuReason = cpufreqReason(st);
-			var gs = document.getElementById('cpu-governor-select');
-			if (!gs || cpuReason !== prevCpuReason) {
-				var cc = document.getElementById('cpu-control-content');
-				if (cc) { cc.innerHTML = ''; cc.appendChild(renderControlSettings(st)); }
-				prevCpuReason = cpuReason;
-			} else if (!cpuSettingsDirty) {
-				if (!gs.matches(':focus')) gs.value = st.cpu_governor || '';
-				var fsSel = document.getElementById('cpu-maxfreq-select');
-				if (fsSel && !fsSel.matches(':focus')) {
-					var target = (st.cpu_max_freq || 0).toString();
-					var hasOpt = Array.from(fsSel.options).some(function(o) { return o.value === target; });
-					if (hasOpt) {
-						fsSel.value = target;
-					} else {
-						// Option list is stale (live value not selectable) — rebuild
-						// so renderMaxFreqSelect can inject the current kernel value.
-						var cc = document.getElementById('cpu-control-content');
-						if (cc) { cc.innerHTML = ''; cc.appendChild(renderControlSettings(st)); }
-					}
+			/* The layout no longer depends on board capability, so every round
+			 * only swaps the card bodies. That also keeps the chart - and a hover
+			 * readout the user is holding open - stable across the 10 s poll. */
+			if (document.getElementById('cpu-body')) {
+				var ci = document.getElementById('cpu-info-content');
+				if (ci) { ci.innerHTML = ''; ci.appendChild(renderCpuInfo(st)); }
+				var cl = document.getElementById('cpu-load-content');
+				if (cl) { cl.innerHTML = ''; cl.appendChild(renderCoreLoad(st)); }
+				var lc = document.getElementById('cpu-load-history-chart');
+				if (lc) {
+					lc.innerHTML = '';
+					lc.appendChild(renderLoadLegend());
+					lc.appendChild(renderLoadChart(lc.parentNode ? lc.parentNode.clientWidth : 0));
 				}
 			}
 

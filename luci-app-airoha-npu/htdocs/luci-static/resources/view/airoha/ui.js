@@ -68,6 +68,13 @@ var COMPONENT_CSS = [
 	'.ai-grid--2 .ai-card{flex:1}',
 	'.ai-grid--3{grid-template-columns:repeat(auto-fit,minmax(15em,1fr))}',
 	'.ai-grid--4{grid-template-columns:repeat(auto-fit,minmax(12em,1fr))}',
+	/* Port cards: the header carries a state pill plus the netdev name, so
+	 * it has to be allowed to wrap before it can push the port name out. */
+	/* The port table is the one wide element on the page (8 counters per port),
+	 * so it scrolls horizontally inside its own card instead of wrapping cells
+	 * into unreadable stacks. */
+	'.ai-port-table .ai-table{min-width:980px}',
+	'.ai-port-table .ai-table td{white-space:nowrap}',
 	'.ai-grid--bands{grid-template-columns:repeat(auto-fit,minmax(7.5em,1fr))}',
 	'.ai-spanall{grid-column:1/-1}',
 
@@ -82,6 +89,14 @@ var COMPONENT_CSS = [
 	'.ai-card-name{font-size:var(--ds-fs-base);font-weight:650;color:var(--ai-accent,var(--ds-text))}',
 	'.ai-card-tag{font-size:var(--ds-fs-xs);color:var(--ds-text-muted);font-family:var(--ds-mono);text-align:right}',
 	'.ai-card-body{font-size:var(--ds-fs-sm)}',
+	/* A card whose body must reach the card's bottom edge (a bar stack that
+	 * has to fill the height its neighbour forces on the row). */
+	'.ai-card--fill{display:flex;flex-direction:column}',
+	'.ai-card--fill .ai-card-body{flex:1;display:flex;flex-direction:column}',
+	/* Extra height goes into the gaps between the bars, not into one lump
+	 * above the footer - a stretched card then reads as a deliberate
+	 * distribution instead of as missing content. */
+	'.ai-bars-fill{flex:1;display:flex;flex-direction:column;justify-content:space-between}',
 	'.ai-row{display:flex;align-items:center;justify-content:space-between;gap:var(--ds-sp-2)}',
 	'.ai-row+.ai-row{margin-top:var(--ds-sp-1)}',
 	'.ai-muted{color:var(--ds-text-muted)}',
@@ -115,7 +130,7 @@ var COMPONENT_CSS = [
 	'.ai-pill--error{color:var(--ds-error);border-color:var(--ds-error-line);background:var(--ds-error-tint)}',
 	'.ai-pill--info{color:var(--ds-info);border-color:var(--ds-info-line);background:var(--ds-info-tint)}',
 	'.ai-badge{display:inline-flex;align-items:center;min-height:18px;padding:0 var(--ds-sp-2);border-radius:var(--ds-r-sm);background:var(--ds-surface-sunken);color:var(--ds-text-muted);font-family:var(--ds-mono);font-size:var(--ds-fs-xs);font-weight:650}',
-	'.ai-badge--bnd{background:var(--ds-info-tint);color:var(--ai-npu);border:1px solid var(--ds-info-line)}',
+	'.ai-badge--bnd{background:var(--ds-ok-tint);color:var(--ds-ok);border:1px solid var(--ds-ok-line)}',
 	'.ai-badge--unb{background:var(--ds-warn-tint);color:var(--ds-warn);border:1px solid var(--ds-warn-line)}',
 	'.ai-badge--v6{background:var(--ds-band6-tint);color:var(--ai-band-6);border:1px solid var(--ds-band6-line)}',
 
@@ -132,6 +147,9 @@ var COMPONENT_CSS = [
 	'@keyframes ai-shimmer{0%{background-position:120% 0}100%{background-position:-20% 0}}',
 
 	'.ai-bar{margin:var(--ds-sp-1) 0 0}',
+	/* A stack of bars as a card body (one per CPU core) starts flush with the
+	 * card title instead of hanging by a quarter em. */
+	'.ai-bar:first-child{margin-top:0}',
 	'.ai-bar-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--ds-sp-2);font-size:var(--ds-fs-xs);color:var(--ds-text-muted)}',
 	'.ai-bar-track{position:relative;height:.5em;margin-top:var(--ds-sp-1);border-radius:var(--ds-r-sm);background:var(--ds-surface-sunken);border:1px solid var(--ds-border);overflow:hidden}',
 	'.ai-bar-fill{position:absolute;left:0;top:0;bottom:0;border-radius:var(--ds-r-sm);background:var(--ai-accent,var(--ds-primary));background-image:linear-gradient(180deg,rgba(255,255,255,.32),rgba(255,255,255,0) 62%);transition:width .4s}',
@@ -192,8 +210,14 @@ var COMPONENT_CSS = [
 	'.ai-table .ai-num,.ai-table th.ai-num{text-align:right}',
 	'.ai-table--mono td{font-family:var(--ds-mono);font-variant-numeric:tabular-nums;font-size:var(--ds-fs-xs)}',
 	'.ai-table tbody tr:hover{background:var(--ds-surface-sunken)}',
-	'.ai-port-table .ai-table{min-width:980px}',
-	'.ai-port-table .ai-table td{white-space:nowrap}',
+	/* A BND flow is one the PPE is forwarding in hardware - the good case, and
+	 * the one this table exists to show. It gets the whole row, not just the
+	 * state badge: green wash, a solid green edge on the index cell, and a
+	 * deeper wash on hover so the highlight survives the row hover. */
+	'.ai-table tbody tr[data-state="BND"]{background:var(--ds-ok-wash,var(--ds-ok-tint))}',
+	'.ai-table tbody tr[data-state="BND"]:hover{background:var(--ds-ok-line)}',
+	'.ai-table tbody tr[data-state="BND"] td:first-child{box-shadow:inset 3px 0 0 var(--ds-ok)}',
+	'.ai-table tbody tr[data-state="BND"] td{border-bottom-color:var(--ds-ok-line)}',
 	'.ai-offload-controls .ai-switch-row{grid-template-columns:minmax(0,1fr) auto}',
 
 	'.ai-details{border:1px solid var(--ds-border);border-radius:var(--ds-r-md);background:var(--ds-surface-sunken);padding:0 var(--ds-sp-3);margin-top:var(--ds-sp-3)}',
@@ -374,7 +398,7 @@ function kv(rows) {
 
 function card(o) {
 	o = o || {};
-	var attrs = { 'class': 'ai-card', 'style': '--ai-accent:' + (o.accent || 'var(--ds-border)') };
+	var attrs = { 'class': 'ai-card' + (o.cls ? ' ' + o.cls : ''), 'style': '--ai-accent:' + (o.accent || 'var(--ds-border)') };
 	if (o.id) attrs.id = o.id;
 	return E('div', attrs, [
 		E('div', { 'class': 'ai-card-title' }, [

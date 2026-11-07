@@ -872,3 +872,21 @@ msgstr ""
 
 msgid "Cumulative IRQs"
 msgstr ""
+
+msgid "Core Load"
+msgstr ""
+
+msgid "Current Frequency"
+msgstr ""
+
+msgid "Average"
+msgstr ""
+
+msgid "Processor"
+msgstr ""
+
+msgid "Dropped"
+msgstr ""
+
+msgid "Load Average"
+msgstr ""
