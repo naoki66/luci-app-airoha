@@ -12,7 +12,7 @@
 		},
 		"write": {
 			"ubus": {
-				"luci.fan": [ "setMode", "setManualPwm", "setPreset", "setCustomCurve" ]
+				"luci.fan": [ "setMode", "setManualPwm", "setPreset", "setCustomCurve", "applySettings" ]
 			},
 			"uci": [ "fan" ]
 		}

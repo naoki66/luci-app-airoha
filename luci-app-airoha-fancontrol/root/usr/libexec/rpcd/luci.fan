@@ -227,9 +227,68 @@ set_custom_curve() {
 	fi
 }
 
+# The settings page stages mode / manual speed / preset / curve locally and
+# commits them together. Going through the four single-field methods above
+# would write /etc/config/fan four times and reload the fan four times per
+# save, so this one validates everything first and commits once.
+#
+# "apply" distinguishes LuCI's two footer buttons: Save writes the config and
+# leaves the running fan alone, Save & Apply also reloads the service.
+apply_all() {
+	local json mode pwm preset apply_service
+	read json
+
+	if ! command -v jsonfilter >/dev/null 2>&1; then
+		echo '{"success":false,"error":"jsonfilter not available"}'
+		return
+	fi
+
+	mode=$(echo "$json" | jsonfilter -e '@.mode' 2>/dev/null)
+	pwm=$(echo "$json" | jsonfilter -e '@.manual_pwm' 2>/dev/null)
+	preset=$(echo "$json" | jsonfilter -e '@.preset' 2>/dev/null)
+	apply_service=$(echo "$json" | jsonfilter -e '@.apply' 2>/dev/null)
+
+	case "$mode" in
+		auto|manual) uci set fan.settings.mode="$mode" ;;
+	esac
+
+	case "$pwm" in
+		''|*[!0-9]*) ;;
+		*) [ "$pwm" -le 255 ] && uci set fan.settings.manual_pwm="$pwm" ;;
+	esac
+
+	case "$preset" in
+		quiet|balanced|performance|custom)
+			uci set fan.settings.curve_preset="$preset"
+			;;
+	esac
+
+	for i in 1 2 3 4 5; do
+		idx=$((i - 1))
+		ptemp=$(echo "$json" | jsonfilter -e "@.points[${idx}].temp" 2>/dev/null)
+		ppwm=$(echo "$json" | jsonfilter -e "@.points[${idx}].pwm" 2>/dev/null)
+		case "$ptemp" in ''|*[!0-9]*) continue ;; esac
+		case "$ppwm" in ''|*[!0-9]*) continue ;; esac
+		[ "$ptemp" -le 100 ] && [ "$ppwm" -le 255 ] || continue
+		uci set fan.custom.point${i}_temp="$ptemp"
+		uci set fan.custom.point${i}_pwm="$ppwm"
+	done
+
+	uci commit fan
+
+	# Anything other than an explicit 0 also pushes the config into the
+	# controller, which is what "Save & Apply" means.
+	case "$apply_service" in
+		0) ;;
+		*) /etc/init.d/fan reload ;;
+	esac
+
+	echo '{"success":true}'
+}
+
 case "$1" in
 	list)
-		echo '{"getStatus":{},"getCurve":{"preset":"str"},"getAllCurves":{},"setMode":{"mode":"str"},"setManualPwm":{"pwm":"int"},"setPreset":{"preset":"str"},"setCustomCurve":{"points":"array"}}'
+		echo '{"getStatus":{},"getCurve":{"preset":"str"},"getAllCurves":{},"setMode":{"mode":"str"},"setManualPwm":{"pwm":"int"},"setPreset":{"preset":"str"},"setCustomCurve":{"points":"array"},"applySettings":{"mode":"str","manual_pwm":"int","preset":"str","points":"array","apply":"int"}}'
 		;;
 	call)
 		case "$2" in
@@ -261,6 +320,9 @@ case "$1" in
 				;;
 			setCustomCurve)
 				set_custom_curve
+				;;
+			applySettings)
+				apply_all
 				;;
 			*)
 				echo '{"error":"Invalid method"}'

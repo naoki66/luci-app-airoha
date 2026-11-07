@@ -242,3 +242,134 @@ msgstr ""
 
 msgid "Overheated"
 msgstr ""
+
+msgid "Applied"
+msgstr ""
+
+
+msgid "Board %s"
+msgstr ""
+
+msgid "Changes discarded"
+msgstr ""
+
+msgid "Choose how the fan is driven, then shape its speed curve."
+msgstr ""
+
+msgid "Control mode"
+msgstr ""
+
+msgid "Cooler, louder under load"
+msgstr ""
+
+msgid "Could not apply: %s"
+msgstr ""
+
+msgid "Curve presets"
+msgstr ""
+
+
+msgid "Drag a point: sideways changes the temperature, up and down changes the speed."
+msgstr ""
+
+msgid "Drag the points yourself"
+msgstr ""
+
+msgid "Dragging a point switches to a custom curve based on “%s”."
+msgstr ""
+
+msgid "Fan curve editor"
+msgstr ""
+
+msgid "Fan curve editor with 5 draggable points, current preset %s"
+msgstr ""
+
+msgid "Fan output"
+msgstr ""
+
+msgid "Fan speed %"
+msgstr ""
+
+msgid "Fixed fan speed"
+msgstr ""
+
+msgid "Fixed speed"
+msgstr ""
+
+msgid "Hold one fixed fan speed."
+msgstr ""
+
+
+msgid "Noise and cooling in balance"
+msgstr ""
+
+msgid "Now %s → about %s"
+msgstr ""
+
+msgid "One choice, applied to the whole fan"
+msgstr ""
+
+msgid "Output"
+msgstr ""
+
+msgid "PWM"
+msgstr ""
+
+msgid "Point %d PWM value"
+msgstr ""
+
+msgid "Point %d temperature in °C"
+msgstr ""
+
+msgid "Point %d: %s °C, %d%% speed"
+msgstr ""
+
+msgid "Precise values"
+msgstr ""
+
+msgid "Presets are fixed. Drag a point or pick Custom to make your own."
+msgstr ""
+
+msgid "Reset curve"
+msgstr ""
+
+msgid "Runs warmer, stays quiet"
+msgstr ""
+
+
+msgid "Slide to set one speed"
+msgstr ""
+
+msgid "Speed follows the temperature curve."
+msgstr ""
+
+msgid "Temperature curve"
+msgstr ""
+
+msgid "Temperature °C"
+msgstr ""
+
+msgid "The fan holds this speed regardless of temperature."
+msgstr ""
+
+msgid "This curve is what the fan follows in automatic mode."
+msgstr ""
+
+msgid "Unsaved"
+msgstr ""
+
+
+msgid "Very low speed may not cool the board."
+msgstr ""
+
+msgid "unknown error"
+msgstr ""
+
+msgid "Max"
+msgstr ""
+
+msgid "Min"
+msgstr ""
+
+msgid "Saved, not applied yet"
+msgstr ""

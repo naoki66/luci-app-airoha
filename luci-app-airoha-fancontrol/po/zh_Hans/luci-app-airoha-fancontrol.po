@@ -243,3 +243,134 @@ msgstr "PWM 点不可递减。"
 
 msgid "Overheated"
 msgstr "过热"
+
+msgid "Applied"
+msgstr "已应用"
+
+
+msgid "Board %s"
+msgstr "主板 %s"
+
+msgid "Changes discarded"
+msgstr "已放弃更改"
+
+msgid "Choose how the fan is driven, then shape its speed curve."
+msgstr "选择风扇的驱动方式，再调整转速曲线。"
+
+msgid "Control mode"
+msgstr "控制方式"
+
+msgid "Cooler, louder under load"
+msgstr "散热优先，负载时更响"
+
+msgid "Could not apply: %s"
+msgstr "应用失败：%s"
+
+msgid "Curve presets"
+msgstr "曲线预设"
+
+
+msgid "Drag a point: sideways changes the temperature, up and down changes the speed."
+msgstr "拖动圆点：左右改温度，上下改转速。"
+
+msgid "Drag the points yourself"
+msgstr "自己拖出想要的曲线"
+
+msgid "Dragging a point switches to a custom curve based on “%s”."
+msgstr "拖动圆点会切换为「自定义」曲线，当前以「%s」为基础。"
+
+msgid "Fan curve editor"
+msgstr "风扇曲线编辑器"
+
+msgid "Fan curve editor with 5 draggable points, current preset %s"
+msgstr "风扇曲线编辑器，5 个可拖动圆点，当前预设「%s」"
+
+msgid "Fan output"
+msgstr "风扇输出"
+
+msgid "Fan speed %"
+msgstr "转速 %"
+
+msgid "Fixed fan speed"
+msgstr "固定风扇转速"
+
+msgid "Fixed speed"
+msgstr "固定转速"
+
+msgid "Hold one fixed fan speed."
+msgstr "锁定一个转速，不随温度变化。"
+
+
+msgid "Noise and cooling in balance"
+msgstr "噪声与散热平衡"
+
+msgid "Now %s → about %s"
+msgstr "当前 %s → 预计 %s"
+
+msgid "One choice, applied to the whole fan"
+msgstr "二选一，对整个风扇生效"
+
+msgid "Output"
+msgstr "输出"
+
+msgid "PWM"
+msgstr "PWM"
+
+msgid "Point %d PWM value"
+msgstr "第 %d 点 PWM"
+
+msgid "Point %d temperature in °C"
+msgstr "第 %d 点温度（°C）"
+
+msgid "Point %d: %s °C, %d%% speed"
+msgstr "第 %d 点：%s °C，转速 %d%%"
+
+msgid "Precise values"
+msgstr "精确数值"
+
+msgid "Presets are fixed. Drag a point or pick Custom to make your own."
+msgstr "预设是固定的。拖动圆点或选择「自定义」即可拥有自己的曲线。"
+
+msgid "Reset curve"
+msgstr "恢复默认"
+
+msgid "Runs warmer, stays quiet"
+msgstr "更安静，温度略高"
+
+
+msgid "Slide to set one speed"
+msgstr "拖动滑杆设定转速"
+
+msgid "Speed follows the temperature curve."
+msgstr "转速跟随温度曲线，越热转得越快。"
+
+msgid "Temperature curve"
+msgstr "温度曲线"
+
+msgid "Temperature °C"
+msgstr "温度 °C"
+
+msgid "The fan holds this speed regardless of temperature."
+msgstr "风扇将一直保持这个转速，不随温度变化。"
+
+msgid "This curve is what the fan follows in automatic mode."
+msgstr "自动模式下风扇按这条曲线调速。"
+
+msgid "Unsaved"
+msgstr "未保存"
+
+
+msgid "Very low speed may not cool the board."
+msgstr "转速过低，可能无法有效散热。"
+
+msgid "unknown error"
+msgstr "未知错误"
+
+msgid "Max"
+msgstr "最大"
+
+msgid "Min"
+msgstr "最小"
+
+msgid "Saved, not applied yet"
+msgstr "已保存，尚未生效"

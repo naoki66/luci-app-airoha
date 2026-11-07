@@ -134,6 +134,11 @@ var COMPONENT_CSS = `
 .fan-context-chip:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--fan-info);flex:none}
 .fan-context-chip[data-level="warn"]:before{background:var(--fan-warn)}
 .fan-context-chip[data-level="none"]:before{background:var(--fan-muted)}
+/* Only the board-temperature chip carries the temperature ramp. Preset and
+ * mode chips stay informational, so the status view keeps its old dots. */
+.fan-chip-temp[data-level="ok"]:before{background:var(--fan-ok)}
+.fan-chip-temp[data-level="hot"]:before{background:var(--fan-hot)}
+.fan-chip-temp[data-level="error"]:before{background:var(--fan-error)}
 .fan-context-chip[data-level="custom"]:before{background:var(--fan-custom)}
 .fan-live{display:inline-flex;align-items:center;gap:6px}
 .fan-live-dot{width:8px;height:8px;border-radius:50%;background:var(--fan-ok);flex:none}
@@ -251,6 +256,109 @@ var COMPONENT_CSS = `
 @media(max-width:760px){.fan-app .fan-curve-section{grid-template-columns:1fr}.fan-app .fan-curve-section>h3,.fan-app .fan-curve-section>.cbi-section-descr,.fan-app .fan-curve-section>.fan-curve-point-head,.fan-app .fan-curve-section>.fan-curve-error{grid-column:auto}}
 @media(max-width:640px){.fan-app{padding-bottom:var(--fan-sp-3)}.fan-app-header{align-items:flex-start;flex-direction:column;gap:6px}.fan-app-meta,.fan-context-chips,.fan-panel-head{width:100%}.fan-panel-head{flex-direction:column;align-items:flex-start;gap:6px}.fan-app .cbi-section{padding:var(--fan-sp-3);margin:var(--fan-gap-sm) 0!important}.fan-app .cbi-value{display:block;padding:var(--fan-sp-3) 0}.fan-app .cbi-value-title{display:block;margin-bottom:7px}.fan-app .cbi-value-field{margin-left:0!important}.fan-app .fan-curve-section .cbi-value{padding:var(--fan-sp-3)}.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-summary-card{min-height:88px}.fan-chart-canvas{height:112px}.fan-curve-canvas{height:250px}.fan-panel{padding:var(--fan-sp-3)}}`;
 
+/* Settings view only: mode tiles, preset sparklines, the draggable curve
+ * editor, the precise-value table and the sticky save bar. Kept in the same
+ * stylesheet as the rest of the design system so both pages share one set of
+ * tokens - a second <style> block would reintroduce the duplicate-palette
+ * problem described at the top of this file. */
+var SETTINGS_CSS = `
+.fan-panel[hidden]{display:none}
+.fan-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--fan-gap-sm)}
+.fan-choice{display:block;cursor:pointer;min-width:0}
+/* Visually hidden, but still focusable and in the tab order: the native radio
+ * is what gives the tile group arrow-key behaviour and a screen-reader role. */
+.fan-choice-input{position:absolute;width:1px;height:1px;margin:0;opacity:0;pointer-events:none;clip:rect(0 0 0 0);overflow:hidden}
+.fan-choice-body{display:flex;align-items:flex-start;gap:var(--fan-sp-3);padding:12px 14px;border:1px solid var(--fan-border);border-left:3px solid var(--fan-level);border-radius:var(--fan-r-md);background:var(--fan-surface-2);transition:background .16s,border-color .16s,box-shadow .16s}
+.fan-choice:hover .fan-choice-body{border-color:var(--fan-info)}
+.fan-choice-body.is-on{background:var(--fan-level-tint);box-shadow:inset 0 0 0 1px var(--fan-level)}
+.fan-choice-input:focus-visible+.fan-choice-body{outline:2px solid var(--fan-info);outline-offset:2px}
+.fan-choice-icon{flex:none;width:34px;height:34px;border-radius:var(--fan-r-sm);display:inline-flex;align-items:center;justify-content:center;background:var(--fan-level-tint);color:var(--fan-level)}
+.fan-choice-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.fan-choice-text{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.fan-choice-title{font-size:14px;font-weight:500;line-height:1.35;color:var(--fan-text)}
+.fan-choice-desc{font-size:12px;line-height:1.45;color:var(--fan-muted)}
+.fan-choice-mark{flex:none;width:18px;height:18px;margin-top:2px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--fan-level);color:var(--fan-surface);opacity:0;transform:scale(.7);transition:opacity .16s,transform .16s}
+.fan-choice-mark svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.fan-choice-body.is-on .fan-choice-mark{opacity:1;transform:none}
+
+.fan-speed{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--fan-sp-3);flex-wrap:wrap}
+.fan-speed-value{display:flex;align-items:baseline;gap:2px;font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;color:var(--fan-text)}
+.fan-speed-value strong{font-size:34px;font-weight:500;line-height:1}
+.fan-speed-value span{font-size:15px;color:var(--fan-muted)}
+.fan-speed-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:12px;line-height:1.4;color:var(--fan-muted);text-align:right}
+.fan-speed-meta b{font-family:var(--fan-font-mono);font-size:13px;font-weight:500;color:var(--fan-text)}
+.fan-slider{-webkit-appearance:none;appearance:none;display:block;width:100%;height:26px;margin:12px 0 0;background:transparent;cursor:pointer}
+.fan-slider:focus{outline:none}
+.fan-slider::-webkit-slider-runnable-track{height:8px;border-radius:var(--fan-r-pill);background:linear-gradient(90deg,var(--fan-series) 0 var(--pct,50%),var(--fan-track) var(--pct,50%) 100%)}
+.fan-slider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-7px;border:2px solid var(--fan-series);border-radius:50%;background:var(--fan-surface);box-shadow:0 2px 6px var(--fan-shadow)}
+.fan-slider:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 3px var(--fan-info-soft)}
+.fan-slider::-moz-range-track{height:8px;border-radius:var(--fan-r-pill);background:var(--fan-track)}
+.fan-slider::-moz-range-progress{height:8px;border-radius:var(--fan-r-pill);background:var(--fan-series)}
+.fan-slider::-moz-range-thumb{width:18px;height:18px;border:2px solid var(--fan-series);border-radius:50%;background:var(--fan-surface)}
+.fan-speed-scale{display:flex;justify-content:space-between;margin-top:-2px;font-family:var(--fan-font-mono);font-size:11px;color:var(--fan-muted)}
+.fan-speed-quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--fan-sp-3)}
+.fan-chip{min-height:30px;padding:0 12px;border:1px solid var(--fan-border);border-radius:var(--fan-r-pill);background:var(--fan-surface);color:var(--fan-text);font:inherit;font-size:12px;cursor:pointer;transition:border-color .16s,color .16s,background .16s}
+.fan-chip:hover{border-color:var(--fan-info);color:var(--fan-info)}
+.fan-chip.is-on{border-color:var(--fan-series);background:var(--fan-series-soft);color:var(--fan-text)}
+.fan-note{margin:var(--fan-sp-3) 0 0;font-size:12px;line-height:1.5;color:var(--fan-muted)}
+.fan-note[data-level="warn"]{color:var(--fan-warn)}
+
+.fan-preset-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--fan-sp-2);margin:0 0 var(--fan-sp-2)}
+.fan-preset{position:relative;display:flex;flex-direction:column;gap:5px;padding:10px 11px;border:1px solid var(--fan-border);border-radius:var(--fan-r-md);background:var(--fan-surface-2);color:var(--fan-text);font:inherit;text-align:left;cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}
+/* Same trick as the mode cards: the radio is invisible but stays focusable, so
+ * the tile keeps its tab stop and the group keeps arrow-key selection. */
+.fan-preset-input{position:absolute;width:1px;height:1px;margin:0;opacity:0;pointer-events:none;clip:rect(0 0 0 0);overflow:hidden}
+.fan-preset:hover{border-color:var(--fan-info)}
+.fan-preset:focus-visible,.fan-preset:has(.fan-preset-input:focus-visible){outline:2px solid var(--fan-info);outline-offset:2px}
+.fan-preset.is-on{border-color:var(--fan-level);background:var(--fan-level-tint);box-shadow:inset 0 0 0 1px var(--fan-level)}
+.fan-preset-name{font-size:13px;font-weight:500;line-height:1.3}
+.fan-preset-spark{display:block;width:100%;height:34px}
+.fan-preset-hint{font-size:11px;line-height:1.35;color:var(--fan-muted)}
+.fan-preset.is-on .fan-preset-hint{color:var(--fan-level)}
+.fan-curve-live{font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.fan-editor{position:relative;margin-top:var(--fan-sp-3);border:1px solid var(--fan-border);border-radius:var(--fan-r-md);background:var(--fan-canvas);overflow:hidden}
+.fan-editor-canvas{display:block;width:100%;height:340px;touch-action:none}
+.fan-editor-canvas.is-editable{cursor:grab}
+.fan-editor.is-dragging .fan-editor-canvas{cursor:grabbing}
+.fan-editor-canvas:focus-visible{outline:2px solid var(--fan-info);outline-offset:-2px}
+.fan-editor-tip{position:absolute;top:0;left:0;z-index:2;display:none;padding:4px 8px;border-radius:var(--fan-r-sm);background:var(--fan-text);color:var(--fan-surface);font-family:var(--fan-font-mono);font-size:11px;white-space:nowrap;pointer-events:none;transform:translate(-50%,-140%)}
+.fan-editor-tip.is-visible{display:block}
+.fan-editor-foot{display:flex;align-items:center;justify-content:space-between;gap:var(--fan-sp-2);flex-wrap:wrap;margin-top:var(--fan-sp-2)}
+.fan-curve-tip{flex:1;min-width:200px;line-height:1.5}
+.fan-link{padding:0;border:0;background:none;color:var(--fan-info);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:2px;white-space:nowrap;height:auto;line-height:1.4}
+.fan-link[hidden]{display:none}
+
+.fan-precise{margin-top:var(--fan-sp-3);border-top:1px solid var(--fan-border);padding-top:var(--fan-sp-1)}
+.fan-precise>summary{display:flex;align-items:center;gap:7px;padding:5px 0;font-size:12px;color:var(--fan-muted);cursor:pointer;list-style:none}
+.fan-precise>summary::-webkit-details-marker{display:none}
+.fan-precise>summary:before{content:"";flex:none;width:6px;height:6px;margin-left:2px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.fan-precise[open]>summary:before{transform:rotate(45deg)}
+.fan-precise>summary:focus-visible{outline:2px solid var(--fan-info);outline-offset:2px;border-radius:var(--fan-r-sm)}
+.fan-points{display:grid;gap:2px;margin-top:var(--fan-sp-2);max-width:560px}
+.fan-point-head,.fan-point-row{display:grid;grid-template-columns:30px minmax(0,1fr) minmax(0,1fr) 54px;align-items:center;gap:var(--fan-sp-2)}
+.fan-point-head{padding:0 2px 4px;font-size:11px;color:var(--fan-muted)}
+.fan-point-head span:last-child{text-align:right}
+.fan-point-row{padding:3px 2px;border-radius:var(--fan-r-sm)}
+.fan-point-row.is-focus{background:var(--fan-info-tint)}
+.fan-point-no{font-family:var(--fan-font-mono);font-size:12px;color:var(--fan-muted);text-align:center}
+.fan-point-row input{width:100%;min-height:32px;padding:4px 8px;border:1px solid var(--fan-border);border-radius:var(--fan-r-sm);background:var(--fan-surface);color:var(--fan-text);font-family:var(--fan-font-mono);font-size:12px;font-variant-numeric:tabular-nums}
+.fan-point-row input:focus{border-color:var(--fan-info);outline:0;box-shadow:0 0 0 3px var(--fan-info-soft)}
+.fan-point-pct{font-family:var(--fan-font-mono);font-size:11px;color:var(--fan-muted);text-align:right}
+
+.fan-context-chip-dirty{border-color:var(--fan-warn);color:var(--fan-warn)}
+.fan-context-chip-dirty:before{background:var(--fan-warn)}
+.fan-context-chip[hidden],.fan-curve-live[hidden]{display:none}
+
+.fan-toast{position:fixed;left:50%;bottom:28px;z-index:60;display:flex;align-items:center;padding:9px 16px;border-radius:var(--fan-r-pill);background:var(--fan-text);color:var(--fan-surface);font-size:12.5px;opacity:0;transform:translate(-50%,10px);pointer-events:none;box-shadow:0 6px 24px rgba(0,0,0,.28);transition:opacity .2s,transform .2s}
+.fan-toast.is-visible{opacity:1;transform:translate(-50%,0)}
+.fan-toast[data-kind="error"]{background:var(--fan-error);color:#fff}
+.fan-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+@media(max-width:900px){.fan-preset-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.fan-choice-grid{grid-template-columns:1fr}.fan-editor-canvas{height:270px}.fan-speed-meta{align-items:flex-start;text-align:left}.fan-point-head,.fan-point-row{grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 44px;gap:6px}}
+@media(prefers-reduced-motion:reduce){.fan-choice-body,.fan-choice-mark,.fan-preset,.fan-chip,.fan-toast{transition:none}}`;
+
 var styleEl = null;
 var lastDark = null;
 var watching = false;
@@ -323,7 +431,7 @@ return baseclass.extend({
 			var previous = lastDark;
 			lastDark = dark;
 			styleEl.textContent = '.fan-app{' + LIGHT + '}\n' + COMPONENT_CSS +
-				(dark ? '\n' + DARK : '');
+				SETTINGS_CSS + (dark ? '\n' + DARK : '');
 			if (previous !== null && previous !== dark) {
 				for (var i = 0; i < listeners.length; i++) listeners[i](dark);
 			}
