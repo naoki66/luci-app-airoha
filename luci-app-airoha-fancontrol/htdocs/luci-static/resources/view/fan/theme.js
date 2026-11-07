@@ -31,11 +31,22 @@
  * also fixes the WCAG 1.4.1 issue: every temperature card now carries a text
  * level beside its colour.
  *
+ * Charts deliberately do NOT use the semantic ramp. Four trend/curve lines in
+ * green/blue/red/purple read as a debug plot and imply health meanings the
+ * data does not have. One data hue (--fan-series) marks the focused series, a
+ * tinted neutral (--fan-series-idle) recedes into comparison lines, and a
+ * warm accent (--fan-series-preview) marks the unsaved custom curve.
+ *
+ * Thresholds are the inclusive upper bound of each band: <=45 Normal,
+ * 45-60 Warm, 60-75 Hot, >75 Critical. The gauge ticks, the level labels and
+ * the health badge all read this same table, so a 62 C sensor can never be
+ * "Hot" on one card and "Warm" on another.
+ *
  * The module is a class factory because LuCI's require() instantiates what a
  * module returns (new _class()), so plain object literals are not usable here.
  */
 
-var THRESHOLDS = [ 40, 55, 70 ];
+var THRESHOLDS = [ 45, 60, 75 ];
 
 var ICONS = {
 	fan: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 10V4M14 13l5 3M10 13l-5 3"/>',
@@ -62,7 +73,9 @@ var LIGHT = `
 --fan-hot:#bc4c00;--fan-hot-tint:rgba(188,76,0,.10);--fan-hot-soft:rgba(188,76,0,.14);
 --fan-error:#cf222e;--fan-error-tint:rgba(207,34,46,.10);--fan-error-soft:rgba(207,34,46,.14);
 --fan-custom:#6f42c1;--fan-custom-tint:rgba(111,66,193,.10);
---fan-preview:#bc4c00;
+--fan-series:#0f766e;--fan-series-soft:rgba(15,118,110,.18);--fan-series-fade:rgba(15,118,110,0);
+--fan-series-idle:#94a3b8;--fan-series-preview:#b45309;
+--fan-series-preview-soft:rgba(180,83,9,.18);--fan-series-preview-fade:rgba(180,83,9,0);
 --fan-r-card:12px;--fan-r-md:8px;--fan-r-sm:6px;--fan-r-pill:999px;
 --fan-gap:12px;--fan-gap-sm:8px;
 --fan-sp-1:4px;--fan-sp-2:8px;--fan-sp-3:12px;--fan-sp-4:16px;--fan-sp-6:24px;
@@ -89,7 +102,9 @@ var DARK = `
 --fan-hot:#f0883e;--fan-hot-tint:rgba(240,136,62,.18);--fan-hot-soft:rgba(240,136,62,.18);
 --fan-error:#f47067;--fan-error-tint:rgba(244,112,103,.18);--fan-error-soft:rgba(244,112,103,.20);
 --fan-custom:#c297ff;--fan-custom-tint:rgba(194,151,255,.18);
---fan-preview:#f0883e;
+--fan-series:#2dd4bf;--fan-series-soft:rgba(45,212,191,.22);--fan-series-fade:rgba(45,212,191,0);
+--fan-series-idle:#64748b;--fan-series-preview:#fbbf24;
+--fan-series-preview-soft:rgba(251,191,36,.20);--fan-series-preview-fade:rgba(251,191,36,0);
 }`;
 
 var COMPONENT_CSS = `
@@ -101,7 +116,8 @@ var COMPONENT_CSS = `
 .fan-app .cbi-button:focus-visible{outline:2px solid var(--fan-info);outline-offset:2px}
 .fan-summary-card,.fan-chart-card,.fan-temp-card{transition:border-color .18s,box-shadow .18s}
 .fan-summary-card:hover,.fan-chart-card:hover,.fan-temp-card:hover{box-shadow:0 3px 12px var(--fan-shadow)}
-.fan-app-header h2,.fan-panel-title{letter-spacing:.01em}
+.fan-panel-title{letter-spacing:.01em}
+.fan-app [data-level="series"]{--fan-level:var(--fan-series);--fan-level-tint:var(--fan-series-soft);--fan-level-soft:var(--fan-series-soft)}
 .fan-app [data-level="info"]{--fan-level:var(--fan-info);--fan-level-tint:var(--fan-info-tint);--fan-level-soft:var(--fan-info-soft)}
 .fan-app [data-level="ok"]{--fan-level:var(--fan-ok);--fan-level-tint:var(--fan-ok-tint);--fan-level-soft:var(--fan-ok-soft)}
 .fan-app [data-level="warn"]{--fan-level:var(--fan-warn);--fan-level-tint:var(--fan-warn-tint);--fan-level-soft:var(--fan-warn-soft)}
@@ -110,9 +126,15 @@ var COMPONENT_CSS = `
 .fan-app [data-level="custom"]{--fan-level:var(--fan-custom);--fan-level-tint:var(--fan-custom-tint);--fan-level-soft:var(--fan-custom-tint)}
 .fan-app [data-level="none"]{--fan-level:var(--fan-muted);--fan-level-tint:var(--fan-track);--fan-level-soft:var(--fan-grid)}
 
-.fan-app-header{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:var(--fan-sp-2);margin:0 0 var(--fan-sp-4)}
-.fan-app-header h2{margin:0;font-size:22px;line-height:1.3;font-weight:500;color:var(--fan-text)}
+.fan-app-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--fan-sp-2);margin:0 0 var(--fan-sp-4);padding:9px var(--fan-sp-4);background:var(--fan-surface-2);border:1px solid var(--fan-border);border-radius:var(--fan-r-md)}
 .fan-app-meta{display:flex;align-items:center;flex-wrap:wrap;gap:var(--fan-sp-2);font-size:12px;color:var(--fan-muted)}
+.fan-context-label{font-size:12px;line-height:1.5;color:var(--fan-muted)}
+.fan-context-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.fan-context-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border:1px solid var(--fan-border);border-radius:var(--fan-r-pill);background:var(--fan-surface);font-size:11px;font-weight:500;color:var(--fan-text);white-space:nowrap}
+.fan-context-chip:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--fan-info);flex:none}
+.fan-context-chip[data-level="warn"]:before{background:var(--fan-warn)}
+.fan-context-chip[data-level="none"]:before{background:var(--fan-muted)}
+.fan-context-chip[data-level="custom"]:before{background:var(--fan-custom)}
 .fan-live{display:inline-flex;align-items:center;gap:6px}
 .fan-live-dot{width:8px;height:8px;border-radius:50%;background:var(--fan-ok);flex:none}
 .fan-live-dot[data-state="stale"]{background:var(--fan-error)}
@@ -159,8 +181,15 @@ var COMPONENT_CSS = `
 .fan-temp-track{position:relative;height:12px;border-radius:var(--fan-r-pill);overflow:hidden;background:var(--fan-track)}
 .fan-temp-fill{height:100%;border-radius:inherit;background:var(--fan-level);transition:width .3s,background .3s}
 .fan-temp-tick{position:absolute;top:0;bottom:0;width:1px;background:var(--fan-surface);opacity:.85}
+.fan-temp-tick[data-threshold]{width:2px;opacity:1}
 .fan-temp-scale{position:relative;height:15px;margin-top:4px;font-size:11px;font-family:var(--fan-font-mono);color:var(--fan-muted)}
 .fan-temp-scale span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.fan-temp-scale span[data-level="warn"]{color:var(--fan-warn);font-weight:500}
+.fan-temp-scale span[data-level="hot"]{color:var(--fan-hot);font-weight:500}
+.fan-temp-scale span[data-level="error"]{color:var(--fan-error);font-weight:500}
+.fan-temp-legend{display:flex;align-items:center;flex-wrap:wrap;gap:4px 14px;font-size:11px;color:var(--fan-muted)}
+.fan-temp-legend-item{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.fan-temp-legend-dot{width:8px;height:8px;border-radius:2px;background:var(--fan-level);flex:none}
 .fan-temp-scale span:first-child{left:0;transform:none}
 .fan-temp-scale span:last-child{right:0;left:auto;transform:none}
 
@@ -186,18 +215,13 @@ var COMPONENT_CSS = `
 .fan-app [data-name="_curve_graph"]{display:block;padding:var(--fan-sp-3) 0 0;margin-top:var(--fan-sp-1);border-top:1px solid var(--fan-border)}
 .fan-app [data-name="_curve_graph"] .cbi-value-title{margin-bottom:var(--fan-sp-2)}
 .fan-app [data-name="_curve_graph"] .cbi-value-field{width:100%}
-.fan-curve-wrap{background:var(--fan-surface);border:1px solid var(--fan-border);border-left:3px solid var(--fan-info);border-radius:var(--fan-r-md);padding:var(--fan-sp-3)}
+.fan-curve-wrap{background:var(--fan-surface);border:1px solid var(--fan-border);border-left:3px solid var(--fan-series);border-radius:var(--fan-r-md);padding:var(--fan-sp-3)}
 .fan-curve-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 var(--fan-sp-2)}
-.fan-curve-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--fan-muted);cursor:default}
-.fan-curve-legend-item.is-active{color:var(--fan-text);font-weight:500}
+.fan-curve-legend-item{--fan-level:var(--fan-series-idle);display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--fan-muted);cursor:default}
+.fan-curve-legend-item.is-active{--fan-level:var(--fan-series);color:var(--fan-text);font-weight:500}
+.fan-curve-legend-item[data-preset="preview"].is-active{--fan-level:var(--fan-series-preview)}
 .fan-curve-legend-item.is-active .fan-curve-swatch{box-shadow:0 0 0 2px var(--fan-surface),0 0 0 3px var(--fan-level)}
-.fan-curve-swatch{width:12px;height:12px;border-radius:3px;flex:none}
-.fan-curve-legend-item[data-preset="quiet"]{--fan-level:var(--fan-ok)}
-.fan-curve-legend-item[data-preset="balanced"]{--fan-level:var(--fan-info)}
-.fan-curve-legend-item[data-preset="performance"]{--fan-level:var(--fan-error)}
-.fan-curve-legend-item[data-preset="custom"]{--fan-level:var(--fan-custom)}
-.fan-curve-legend-item[data-preset="preview"]{--fan-level:var(--fan-preview)}
-.fan-curve-legend-item .fan-curve-swatch{background:var(--fan-level)}
+.fan-curve-swatch{width:12px;height:12px;border-radius:3px;flex:none;background:var(--fan-level)}
 .fan-curve-canvas{display:block;width:100%;height:320px;background:var(--fan-canvas);border:1px solid var(--fan-border);border-radius:var(--fan-r-sm)}
 .fan-curve-error{display:none;margin-top:var(--fan-sp-2);padding:var(--fan-sp-2) var(--fan-sp-3);border:1px solid var(--fan-error);border-radius:var(--fan-r-sm);background:var(--fan-error-tint);color:var(--fan-error);font-size:12px;line-height:1.5}
 .fan-curve-error.is-visible{display:block}
@@ -212,7 +236,6 @@ var COMPONENT_CSS = `
 .fan-curve-point-head span{flex:1;text-align:center}
 .fan-curve-point-head span:first-child{text-align:left}
 
-.fan-app-subtitle{font-size:12px;line-height:1.5;color:var(--fan-muted);margin-top:2px}
 .fan-app.is-stale .fan-summary-card,.fan-app.is-stale .fan-chart-card,.fan-app.is-stale .fan-temp-card{opacity:.68}
 .fan-app .fan-curve-section .cbi-value{position:relative}
 .fan-app .fan-curve-section .cbi-value[data-point]:before{content:attr(data-point);position:absolute;top:9px;right:10px;display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--fan-track);color:var(--fan-muted);font-family:var(--fan-font-mono);font-size:11px}
@@ -224,7 +247,7 @@ var COMPONENT_CSS = `
 @media(pointer:coarse){.fan-app .cbi-value-field input,.fan-app .cbi-value-field select,.fan-app .cbi-button{min-height:44px}}
 @media(max-width:1050px){.fan-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}.fan-chart-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.fan-app .fan-curve-section{grid-template-columns:1fr}.fan-app .fan-curve-section>h3,.fan-app .fan-curve-section>.cbi-section-descr,.fan-app .fan-curve-section>.fan-curve-point-head,.fan-app .fan-curve-section>.fan-curve-error{grid-column:auto}}
-@media(max-width:640px){.fan-app{padding-bottom:var(--fan-sp-3)}.fan-app-header{align-items:flex-start;flex-direction:column;gap:6px}.fan-app-header h2{font-size:20px}.fan-app-meta{width:100%}.fan-app .cbi-section{padding:var(--fan-sp-3);margin:var(--fan-gap-sm) 0!important}.fan-app .cbi-value{display:block;padding:var(--fan-sp-3) 0}.fan-app .cbi-value-title{display:block;margin-bottom:7px}.fan-app .cbi-value-field{margin-left:0!important}.fan-app .fan-curve-section .cbi-value{padding:var(--fan-sp-3)}.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-summary-card{min-height:88px}.fan-chart-canvas{height:112px}.fan-curve-canvas{height:250px}.fan-panel{padding:var(--fan-sp-3)}}`;
+@media(max-width:640px){.fan-app{padding-bottom:var(--fan-sp-3)}.fan-app-header{align-items:flex-start;flex-direction:column;gap:6px}.fan-app-meta,.fan-context-chips,.fan-panel-head{width:100%}.fan-panel-head{flex-direction:column;align-items:flex-start;gap:6px}.fan-app .cbi-section{padding:var(--fan-sp-3);margin:var(--fan-gap-sm) 0!important}.fan-app .cbi-value{display:block;padding:var(--fan-sp-3) 0}.fan-app .cbi-value-title{display:block;margin-bottom:7px}.fan-app .cbi-value-field{margin-left:0!important}.fan-app .fan-curve-section .cbi-value{padding:var(--fan-sp-3)}.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-summary-card{min-height:88px}.fan-chart-canvas{height:112px}.fan-curve-canvas{height:250px}.fan-panel{padding:var(--fan-sp-3)}}`;
 
 var styleEl = null;
 var lastDark = null;
@@ -323,14 +346,15 @@ return baseclass.extend({
 		return dark;
 	},
 
-	/* One ramp for the whole app: 0-40 normal, 40-55 warm, 55-70 hot, >70
-	 * critical. The same numbers drive the gauge ticks and the curve points. */
+	/* Inclusive upper bounds: <=45 Normal ('正常'), <=60 Warm ('偏高'),
+	 * <=75 Hot ('高温'), >75 Critical ('过热'). The status health badge calls
+	 * this too, so it can never disagree with the per-sensor labels. */
 	tempLevel: function(temp) {
 		if (!(temp > 0)) return { key: 'none', label: _('No data') };
 		if (temp <= THRESHOLDS[0]) return { key: 'ok', label: _('Normal') };
 		if (temp <= THRESHOLDS[1]) return { key: 'warn', label: _('Warm') };
 		if (temp <= THRESHOLDS[2]) return { key: 'hot', label: _('Hot') };
-		return { key: 'error', label: _('Critical') };
+		return { key: 'error', label: _('Overheated') };
 	},
 
 	/* The old gauge used `temp` directly as a percentage, so 55 C filled 55%

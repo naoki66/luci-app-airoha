@@ -10,18 +10,16 @@ var callGetAllCurves = rpc.declare({
 	method: 'getAllCurves'
 });
 
-/* One ramp for the whole app. The canvas used to draw its legend with four
- * Bootstrap hex values (#28a745 / #007bff / #dc3545 / #6f42c1) that had no
- * relationship to the page palette; the legend is HTML now and both it and the
- * strokes read the very same tokens as the status page. */
+/* Four preset lines in green/blue/red/purple read as a debug plot. There is
+ * now one data hue for the selected curve, a tinted neutral for the three
+ * comparison curves, and a warm accent for the unsaved custom preview. The
+ * HTML legend and the canvas strokes read the very same tokens. */
 var PRESET_KEYS = [ 'quiet', 'balanced', 'performance', 'custom' ];
 var CURVE_TOKENS = {
-	quiet: '--fan-ok', balanced: '--fan-info', performance: '--fan-error',
-	custom: '--fan-custom', preview: '--fan-preview'
+	idle: '--fan-series-idle', active: '--fan-series', preview: '--fan-series-preview'
 };
 var CURVE_FALLBACK = {
-	quiet: '#1a7f37', balanced: '#0969da', performance: '#cf222e',
-	custom: '#6f42c1', preview: '#bc4c00'
+	idle: '#94a3b8', active: '#0f766e', preview: '#b45309'
 };
 var PRESET_LABELS = {
 	quiet: _('Quiet'), balanced: _('Balanced'), performance: _('Performance'),
@@ -61,18 +59,21 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview, highligh
 	var axis = fanTheme.color('--fan-axis', '#555', canvas);
 	var muted = fanTheme.color('--fan-muted', '#5c6773', canvas);
 	var text = fanTheme.color('--fan-text', '#1f2328', canvas);
-	var colors = {};
-	PRESET_KEYS.forEach(function(key) {
-		colors[key] = fanTheme.color(CURVE_TOKENS[key], CURVE_FALLBACK[key], canvas);
-	});
+	var surface = fanTheme.color('--fan-surface', '#fff', canvas);
+	var idleColor = fanTheme.color(CURVE_TOKENS.idle, CURVE_FALLBACK.idle, canvas);
+	var activeColor = fanTheme.color(CURVE_TOKENS.active, CURVE_FALLBACK.active, canvas);
 	var previewColor = fanTheme.color(CURVE_TOKENS.preview, CURVE_FALLBACK.preview, canvas);
+	var fillTop = fanTheme.color('--fan-series-soft', 'rgba(15,118,110,.18)', canvas);
+	var fillBottom = fanTheme.color('--fan-series-fade', 'rgba(15,118,110,0)', canvas);
+	var previewTop = fanTheme.color('--fan-series-preview-soft', 'rgba(180,83,9,.18)', canvas);
+	var previewBottom = fanTheme.color('--fan-series-preview-fade', 'rgba(180,83,9,0)', canvas);
 
 	ctx.fillStyle = background;
 	ctx.fillRect(0, 0, width, height);
 
 	ctx.strokeStyle = grid;
 	ctx.lineWidth = 1;
-	for (var t = 0; t <= 100; t += 10) {
+	for (var t = 0; t <= 100; t += 20) {
 		var x = padX + (t / 100) * plotW;
 		ctx.beginPath(); ctx.moveTo(x, padY); ctx.lineTo(x, padY + plotH); ctx.stroke();
 	}
@@ -108,37 +109,72 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview, highligh
 	for (var py = 0; py <= 255; py += 51)
 		ctx.fillText(py, padX - 4, padY + plotH - (py / 255) * plotH + 4);
 
-	function drawLine(points, color, alpha, lineW, dots) {
-		if (!points || !points.length) return;
-		ctx.strokeStyle = color;
-		ctx.fillStyle = color;
-		ctx.lineWidth = lineW || 1.5;
-		ctx.globalAlpha = alpha != null ? alpha : 0.4;
-		ctx.beginPath();
-		points.forEach(function(pt, idx) {
-			var px = padX + (pt.temp / 100) * plotW;
-			var y = padY + plotH - (pt.pwm / 255) * plotH;
-			idx === 0 ? ctx.moveTo(px, y) : ctx.lineTo(px, y);
-		});
-		ctx.stroke();
-		if (dots) {
-			points.forEach(function(pt, idx) {
-				var px = padX + (pt.temp / 100) * plotW;
-				var y = padY + plotH - (pt.pwm / 255) * plotH;
-				ctx.beginPath();
-				ctx.arc(px, y, highlight === idx + 1 ? 6 : 4, 0, 2 * Math.PI);
-				ctx.fill();
-			});
-		}
-		ctx.globalAlpha = 1;
+	function toXY(pt) {
+		return { x: padX + (pt.temp / 100) * plotW,
+			y: padY + plotH - (pt.pwm / 255) * plotH };
 	}
 
+	function drawLine(points, color, lineW, opts) {
+		if (!points || !points.length) return;
+		opts = opts || {};
+		var coords = points.map(toXY);
+
+		if (opts.fill) {
+			var gradient = ctx.createLinearGradient(0, padY, 0, padY + plotH);
+			gradient.addColorStop(0, opts.fillTop);
+			gradient.addColorStop(1, opts.fillBottom);
+			ctx.beginPath();
+			ctx.moveTo(coords[0].x, padY + plotH);
+			coords.forEach(function(c) { ctx.lineTo(c.x, c.y); });
+			ctx.lineTo(coords[coords.length - 1].x, padY + plotH);
+			ctx.closePath();
+			ctx.fillStyle = gradient;
+			ctx.fill();
+		}
+
+		ctx.save();
+		ctx.strokeStyle = color;
+		ctx.fillStyle = color;
+		ctx.lineWidth = lineW;
+		ctx.lineJoin = 'round';
+		ctx.lineCap = 'round';
+		ctx.globalAlpha = opts.alpha != null ? opts.alpha : 1;
+		ctx.beginPath();
+		coords.forEach(function(c, idx) {
+			idx === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+		});
+		ctx.stroke();
+
+		/* A surface-coloured ring keeps a dot readable where lines cross. */
+		if (opts.dots) {
+			coords.forEach(function(c, idx) {
+				ctx.beginPath();
+				ctx.arc(c.x, c.y, highlight === idx + 1 ? 6.5 : 4.5, 0, 2 * Math.PI);
+				ctx.fill();
+				ctx.lineWidth = 2;
+				ctx.strokeStyle = surface;
+				ctx.stroke();
+				ctx.strokeStyle = color;
+				ctx.lineWidth = lineW;
+			});
+		}
+		ctx.restore();
+	}
+
+	/* Comparison curves recede; only the selected preset (or the unsaved
+	 * custom preview) carries colour, weight, an area fill and points. */
 	PRESET_KEYS.forEach(function(key) {
-		var isActive = key === activePreset && !customPreview;
-		drawLine(curves[key], colors[key], isActive ? 1 : 0.3, isActive ? 2.5 : 1, isActive);
+		if (key !== activePreset || customPreview)
+			drawLine(curves[key], idleColor, 2, { alpha: 0.75 });
 	});
-	if (customPreview)
-		drawLine(customPreview, previewColor, 1, 2.5, true);
+	if (customPreview) {
+		drawLine(curves.custom, idleColor, 2, { alpha: 0.75 });
+		drawLine(customPreview, previewColor, 3.5, { dots: true, fill: true,
+			fillTop: previewTop, fillBottom: previewBottom });
+	} else {
+		drawLine(curves[activePreset] || curves.balanced, activeColor, 3.5,
+			{ dots: true, fill: true, fillTop: fillTop, fillBottom: fillBottom });
+	}
 }
 
 function readCustomPoints() {
@@ -266,11 +302,12 @@ return view.extend({
 
 		return m.render().then(function(node) {
 			node.classList.add('fan-app', 'fan-settings');
-			var header = E('div', { 'class': 'fan-app-header' }, [
-				E('div', {}, [
-					E('h2', {}, _('Fan Control')),
-					E('div', { 'class': 'fan-app-subtitle' },
-						_('Configure fan control mode and speed curves.'))
+			var header = E('div', { 'class': 'fan-app-header fan-context-bar' }, [
+				E('div', { 'class': 'fan-context-label' },
+					_('Configure fan control mode and speed curves.')),
+				E('div', { 'class': 'fan-context-chips' }, [
+					E('span', { 'class': 'fan-context-chip', 'id': 'fan-settings-mode' }, ''),
+					E('span', { 'class': 'fan-context-chip', 'id': 'fan-settings-preset' }, '')
 				])
 			]);
 			var firstChild = node.children ? node.children[0] : null;
@@ -331,12 +368,31 @@ return view.extend({
 					}
 				}
 
+				function updateSettingsContext() {
+					var modeChip = document.getElementById('fan-settings-mode');
+					var presetChip = document.getElementById('fan-settings-preset');
+					var manual = getCurrentMode() === 'manual';
+					var preset = getCurrentPreset();
+					if (modeChip) {
+						modeChip.textContent = manual ? _('Manual') : _('Automatic');
+						modeChip.setAttribute('data-level', manual ? 'warn' : 'info');
+					}
+					if (presetChip) {
+						presetChip.textContent = manual
+							? _('Curve is paused')
+							: (PRESET_LABELS[preset] || PRESET_LABELS.balanced);
+						presetChip.setAttribute('data-level',
+							manual ? 'none' : (preset === 'custom' ? 'custom' : 'info'));
+					}
+				}
+
 				function redrawCanvas() {
 					var preset = getCurrentPreset();
 					var hasPreview = preset === 'custom';
 					drawCurveCanvas('curve-canvas', curves, preset,
 						hasPreview ? readCustomPoints() : null, activePoint);
 					updateLegend(preset, hasPreview);
+					updateSettingsContext();
 					validatePoints();
 				}
 

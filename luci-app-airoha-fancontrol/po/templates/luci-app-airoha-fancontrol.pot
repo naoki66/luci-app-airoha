@@ -239,3 +239,6 @@ msgstr ""
 
 msgid "PWM points must not decrease."
 msgstr ""
+
+msgid "Overheated"
+msgstr ""

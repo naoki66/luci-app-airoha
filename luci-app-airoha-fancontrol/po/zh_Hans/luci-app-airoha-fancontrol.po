@@ -240,3 +240,6 @@ msgstr "温度点必须依次递增。"
 
 msgid "PWM points must not decrease."
 msgstr "PWM 点不可递减。"
+
+msgid "Overheated"
+msgstr "过热"

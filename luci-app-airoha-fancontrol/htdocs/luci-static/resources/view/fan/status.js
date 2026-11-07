@@ -19,26 +19,26 @@ var CHART_PAD = { left: 31, right: 6, top: 7, bottom: 16 };
 var history = [];
 var themeWatched = false;
 
-/* Every readout on this page is keyed by a semantic level rather than a raw
- * hex colour. The level maps onto the shared ramp in theme.js, so the same
- * blue / green / amber / red means the same thing here and on the settings
- * page, and both light and dark palettes stay above 4.5:1 for text. */
+/* One data hue for all three trends. They used to borrow the semantic ramp
+ * (amber / blue / green), which made a temperature reading look like a health
+ * warning and turned the panel into a traffic-light plot. Card titles already
+ * tell the series apart, so colour can stay quiet and consistent. */
 var CHARTS = [
-	{ id: 'fc-temp', key: 'temperature', level: 'hot',
-		line: '--fan-hot', fill: '--fan-hot-soft',
-		lineFallback: '#bc4c00', fillFallback: 'rgba(188,76,0,.14)',
+	{ id: 'fc-temp', key: 'temperature', level: 'series',
+		line: '--fan-series', fill: '--fan-series-soft', fade: '--fan-series-fade',
+		lineFallback: '#0f766e', fillFallback: 'rgba(15,118,110,.18)', fadeFallback: 'rgba(15,118,110,0)',
 		minMax: 40, step: 20, label: _('Board Temperature'), unit: 'C',
 		format: function(value) { return value + '\u00b0'; },
 		read: function(s) { return (s.temp_board || 0) + '\u00b0C'; } },
-	{ id: 'fc-pwm', key: 'pwm', level: 'info',
-		line: '--fan-info', fill: '--fan-info-soft',
-		lineFallback: '#0969da', fillFallback: 'rgba(9,105,218,.14)',
+	{ id: 'fc-pwm', key: 'pwm', level: 'series',
+		line: '--fan-series', fill: '--fan-series-soft', fade: '--fan-series-fade',
+		lineFallback: '#0f766e', fillFallback: 'rgba(15,118,110,.18)', fadeFallback: 'rgba(15,118,110,0)',
 		minMax: 100, step: 50, label: _('Fan PWM'), unit: ' / 255',
 		format: function(value) { return String(value); },
 		read: function(s) { return (s.fan_pwm || 0) + ' / 255'; } },
-	{ id: 'fc-rpm', key: 'rpm', level: 'ok',
-		line: '--fan-ok', fill: '--fan-ok-soft',
-		lineFallback: '#1a7f37', fillFallback: 'rgba(26,127,55,.16)',
+	{ id: 'fc-rpm', key: 'rpm', level: 'series',
+		line: '--fan-series', fill: '--fan-series-soft', fade: '--fan-series-fade',
+		lineFallback: '#0f766e', fillFallback: 'rgba(15,118,110,.18)', fadeFallback: 'rgba(15,118,110,0)',
 		minMax: 1000, step: 500, label: _('Fan Speed'), unit: ' RPM',
 		format: function(value) { return String(value); },
 		read: function(s) { return (s.fan_rpm || 0) + ' RPM'; } }
@@ -94,11 +94,10 @@ function healthInfo(status) {
 	});
 	if ((Number(status.fan_rpm) || 0) === 0 && (Number(status.fan_pwm) || 0) > 0)
 		return { level: 'error', text: _('Fan stopped') };
-	if (maxTemp > fanTheme.THRESHOLDS[2])
-		return { level: 'error', text: _('Overheating') };
-	if (maxTemp > fanTheme.THRESHOLDS[1])
-		return { level: 'hot', text: _('Hot') };
-	return { level: 'ok', text: _('Normal') };
+	/* Reuse the very same table as the per-sensor labels. The old badge had
+	 * its own >55 = Hot rule, so a 63 C PHY was "Hot" here and "偏高" below. */
+	var level = fanTheme.tempLevel(maxTemp);
+	return { level: level.key, text: level.label };
 }
 
 function restoreHistory() {
@@ -133,6 +132,23 @@ function presetInfo(uciMode, preset) {
 	if (uciMode === 'manual')
 		return { value: _('Manual'), sub: _('Curve is paused'), level: 'none' };
 	return PRESET_INFO[preset] || PRESET_INFO.balanced;
+}
+
+/* The tab strip already names the page. The header therefore carries only
+ * what the tab cannot: live status, freshness and the active configuration. */
+function updateContext(status) {
+	var mode = document.getElementById('fan-context-mode');
+	var preset = document.getElementById('fan-context-preset');
+	var modeData = modeInfo(status.uci_mode);
+	var presetData = presetInfo(status.uci_mode, status.uci_preset);
+	if (mode) {
+		mode.textContent = modeData.value;
+		mode.setAttribute('data-level', modeData.level);
+	}
+	if (preset) {
+		preset.textContent = presetData.value;
+		preset.setAttribute('data-level', presetData.level);
+	}
 }
 
 /* `status === null` is the first frame, before the first RPC returns. Showing
@@ -200,17 +216,36 @@ function updateSummary(status) {
 
 function tickElements() {
 	return fanTheme.tempTicks().map(function(threshold) {
-		return E('div', { 'class': 'fan-temp-tick', 'style': 'left:' + threshold + '%' });
+		return E('div', { 'class': 'fan-temp-tick', 'data-threshold': '1',
+			'style': 'left:' + threshold + '%' });
 	});
 }
 
 function scaleElements() {
 	var nodes = [ E('span', {}, '0') ];
-	fanTheme.tempTicks().forEach(function(threshold) {
-		nodes.push(E('span', { 'style': 'left:' + threshold + '%' }, String(threshold)));
+	var levels = [ 'warn', 'hot', 'error' ];
+	fanTheme.tempTicks().forEach(function(threshold, idx) {
+		nodes.push(E('span', { 'style': 'left:' + threshold + '%',
+			'data-level': levels[idx] || 'hot' }, String(threshold)));
 	});
 	nodes.push(E('span', {}, '100\u00b0C'));
 	return nodes;
+}
+
+/* Define the bands once in the panel header rather than repeating a level
+ * word on each of the seven temperature cards. */
+function tempLegend() {
+	var bands = [
+		{ level: 'ok', text: _('Normal') + ' \u226445\u00b0' },
+		{ level: 'warn', text: _('Warm') + ' 45\u201360\u00b0' },
+		{ level: 'hot', text: _('Hot') + ' 60\u201375\u00b0' },
+		{ level: 'error', text: _('Overheated') + ' >75\u00b0' }
+	];
+	return E('div', { 'class': 'fan-temp-legend' }, bands.map(function(band) {
+		return E('span', { 'class': 'fan-temp-legend-item', 'data-level': band.level }, [
+			E('i', { 'class': 'fan-temp-legend-dot' }), band.text
+		]);
+	}));
 }
 
 function createTempGauge(gauge, temp) {
@@ -293,6 +328,8 @@ function drawChart(canvas, hist, chart, hoverSample) {
 	var gridColor = fanTheme.color('--fan-grid', 'rgba(80,90,100,.18)', canvas);
 	var lineColor = fanTheme.color(chart.line, chart.lineFallback, canvas);
 	var fillColor = fanTheme.color(chart.fill, chart.fillFallback, canvas);
+	var fadeColor = fanTheme.color(chart.fade, chart.fadeFallback, canvas);
+	var surfaceColor = fanTheme.color('--fan-surface', '#fff', canvas);
 
 	canvas.width = Math.round(width * dpr);
 	canvas.height = Math.round(height * dpr);
@@ -341,7 +378,10 @@ function drawChart(canvas, hist, chart, hoverSample) {
 	}
 	ctx.lineTo(point(hist[hist.length - 1]).x, plotB);
 	ctx.closePath();
-	ctx.fillStyle = fillColor;
+	var gradient = ctx.createLinearGradient(0, pad.top, 0, plotB);
+	gradient.addColorStop(0, fillColor);
+	gradient.addColorStop(1, fadeColor);
+	ctx.fillStyle = gradient;
 	ctx.fill();
 	ctx.beginPath();
 	for (var j = 0; j < hist.length; j++) {
@@ -349,7 +389,9 @@ function drawChart(canvas, hist, chart, hoverSample) {
 		j === 0 ? ctx.moveTo(linePoint.x, linePoint.y) : ctx.lineTo(linePoint.x, linePoint.y);
 	}
 	ctx.strokeStyle = lineColor;
-	ctx.lineWidth = 1.7;
+	ctx.lineWidth = 2.5;
+	ctx.lineJoin = 'round';
+	ctx.lineCap = 'round';
 	ctx.stroke();
 
 	if (hoverSample) {
@@ -367,8 +409,11 @@ function drawChart(canvas, hist, chart, hoverSample) {
 		ctx.globalAlpha = 1;
 		ctx.fillStyle = lineColor;
 		ctx.beginPath();
-		ctx.arc(hp.x, hp.y, 3.5, 0, 2 * Math.PI);
+		ctx.arc(hp.x, hp.y, 4.5, 0, 2 * Math.PI);
 		ctx.fill();
+		ctx.lineWidth = 2;
+		ctx.strokeStyle = surfaceColor;
+		ctx.stroke();
 		ctx.restore();
 	}
 }
@@ -461,18 +506,17 @@ return view.extend({
 		restoreHistory();
 
 		var viewEl = E('div', { 'class': 'cbi-map fan-app fan-dashboard' }, [
-			E('div', { 'class': 'fan-app-header' }, [
-				E('div', {}, [
-					E('h2', {}, _('Fan Status')),
-					E('div', { 'class': 'fan-app-subtitle' },
-						_('View real-time fan speed and system temperatures.'))
-				]),
+			E('div', { 'class': 'fan-app-header fan-context-bar' }, [
 				E('div', { 'class': 'fan-app-meta' }, [
 					E('span', { 'class': 'fan-live' }, [
 						E('span', { 'class': 'fan-live-dot', 'id': 'fan-live-dot', 'data-state': 'pending' }),
 						E('span', { 'id': 'fan-live-text' }, _('Collecting data…'))
 					]),
 					E('span', { 'id': 'fan-last-update' }, '')
+				]),
+				E('div', { 'class': 'fan-context-chips' }, [
+					E('span', { 'class': 'fan-context-chip', 'id': 'fan-context-mode' }, ''),
+					E('span', { 'class': 'fan-context-chip', 'id': 'fan-context-preset' }, '')
 				])
 			]),
 			renderSummary(null),
@@ -488,7 +532,7 @@ return view.extend({
 			E('div', { 'class': 'fan-panel' }, [
 				E('div', { 'class': 'fan-panel-head' }, [
 					E('div', { 'class': 'fan-panel-title' }, _('Temperatures')),
-					E('div', { 'class': 'fan-panel-hint' }, '0\u2013100\u00b0C')
+					tempLegend()
 				]),
 				E('div', { 'class': 'fan-temp-grid' }, [
 					temperatureGroup(_('System'), SYSTEM_GAUGES, null),
@@ -502,6 +546,7 @@ return view.extend({
 				current = current || {};
 				fanTheme.apply();
 				updateSummary(current);
+				updateContext(current);
 				ALL_GAUGES.forEach(function(gauge) {
 					updateGauge(gauge, current[gauge.key] || 0);
 				});
