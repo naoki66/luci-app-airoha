@@ -161,19 +161,21 @@ var COMPONENT_CSS = `
 .fan-overview-grid{display:grid;grid-template-columns:minmax(150px,.85fr) repeat(4,minmax(0,1fr));gap:var(--fan-gap);align-items:stretch}
 .fan-mode-cell{display:flex;align-items:center;justify-content:center;padding:var(--fan-sp-2) var(--fan-sp-3);background:var(--fan-surface-2);border:1px solid var(--fan-border);border-left:3px solid var(--fan-level);border-radius:var(--fan-r-md);min-width:0}
 .fan-seg{display:flex;gap:3px;width:100%;padding:3px;background:var(--fan-track);border-radius:var(--fan-r-md)}
-.fan-seg-btn{flex:1;min-width:0;min-height:32px;padding:0 10px;border:0;border-radius:calc(var(--fan-r-md) - 2px);background:transparent;color:var(--fan-muted);font:inherit;font-size:13px;font-weight:500;line-height:1.3;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .16s,color .16s,box-shadow .16s}
+.fan-seg-btn{flex:1;min-width:0;min-height:30px;padding:0 10px;border:0;border-radius:calc(var(--fan-r-md) - 2px);background:transparent;color:var(--fan-muted);font:inherit;font-size:13px;font-weight:500;line-height:1.3;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .16s,color .16s,box-shadow .16s}
 .fan-seg-btn:hover{color:var(--fan-text)}
 .fan-seg-btn.is-on{background:var(--fan-surface);color:var(--fan-level);box-shadow:0 1px 4px var(--fan-shadow)}
 .fan-seg-btn:focus-visible{outline:2px solid var(--fan-info);outline-offset:1px}
-.fan-summary-card{position:relative;background:var(--fan-surface);border:1px solid var(--fan-border);border-left:3px solid var(--fan-level);border-radius:var(--fan-r-card);padding:var(--fan-sp-3) var(--fan-sp-4);min-height:104px;display:flex;flex-direction:column;gap:5px;min-width:0}
-.fan-card-top{display:flex;align-items:center;gap:var(--fan-sp-2);min-height:22px}
-.fan-icon{width:22px;height:22px;border-radius:var(--fan-r-sm);background:var(--fan-level-tint);display:inline-flex;align-items:center;justify-content:center;flex:none}
-.fan-icon svg{width:14px;height:14px;fill:none;stroke:var(--fan-level);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+/* Compact stat cards: same fields as before, tighter rhythm. Equal heights
+ * come from the grid stretch, so no min-height is needed. */
+.fan-summary-card{position:relative;background:var(--fan-surface);border:1px solid var(--fan-border);border-left:3px solid var(--fan-level);border-radius:var(--fan-r-card);padding:var(--fan-sp-2) var(--fan-sp-3);display:flex;flex-direction:column;gap:3px;min-width:0}
+.fan-card-top{display:flex;align-items:center;gap:var(--fan-sp-2);min-height:18px}
+.fan-icon{width:20px;height:20px;border-radius:var(--fan-r-sm);background:var(--fan-level-tint);display:inline-flex;align-items:center;justify-content:center;flex:none}
+.fan-icon svg{width:13px;height:13px;fill:none;stroke:var(--fan-level);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .fan-card-title{font-size:12px;font-weight:500;letter-spacing:.02em;color:var(--fan-muted);line-height:1.35}
-.fan-card-value{font-size:24px;line-height:1.15;font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;font-weight:500;color:var(--fan-text)}
-.fan-card-unit{font-family:var(--fan-font-ui);font-size:12px;font-weight:400;color:var(--fan-muted);margin-left:5px}
-.fan-card-sub{font-size:12px;line-height:1.4;color:var(--fan-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fan-badge{margin-left:auto;flex:none;font-size:11px;line-height:1.4;padding:2px 8px;border-radius:var(--fan-r-pill);background:var(--fan-level-tint);color:var(--fan-level);font-weight:500}
+.fan-card-value{font-size:20px;line-height:1.15;font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;font-weight:500;color:var(--fan-text)}
+.fan-card-unit{font-family:var(--fan-font-ui);font-size:11px;font-weight:400;color:var(--fan-muted);margin-left:4px}
+.fan-card-sub{font-size:11px;line-height:1.4;color:var(--fan-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fan-badge{margin-left:auto;flex:none;font-size:11px;line-height:1.4;padding:1px 7px;border-radius:var(--fan-r-pill);background:var(--fan-level-tint);color:var(--fan-level);font-weight:500}
 
 .fan-panel{background:var(--fan-surface);border:1px solid var(--fan-border);border-radius:var(--fan-r-card);padding:var(--fan-sp-4);margin:var(--fan-gap) 0}
 .fan-panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--fan-sp-2);padding:0 0 var(--fan-sp-2);margin:0 0 var(--fan-sp-3);border-bottom:1px solid var(--fan-border)}
@@ -278,7 +280,7 @@ var COMPONENT_CSS = `
 @media(pointer:coarse){.fan-app .cbi-value-field input,.fan-app .cbi-value-field select,.fan-app .cbi-button{min-height:44px}}
 @media(max-width:1050px){.fan-overview-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.fan-mode-cell{grid-column:1/-1;padding:var(--fan-sp-3)}.fan-chart-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.fan-app .fan-curve-section{grid-template-columns:1fr}.fan-overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fan-app .fan-curve-section>h3,.fan-app .fan-curve-section>.cbi-section-descr,.fan-app .fan-curve-section>.fan-curve-point-head,.fan-app .fan-curve-section>.fan-curve-error{grid-column:auto}}
-@media(max-width:640px){.fan-app{padding-bottom:var(--fan-sp-3)}.fan-app-header{align-items:flex-start;flex-direction:column;gap:6px}.fan-app-meta,.fan-context-chips,.fan-panel-head{width:100%}.fan-panel-head{flex-direction:column;align-items:flex-start;gap:6px}.fan-overview-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-summary-card{min-height:88px}.fan-chart-canvas{height:112px}.fan-curve-canvas{height:250px}.fan-panel{padding:var(--fan-sp-3)}}`;
+@media(max-width:640px){.fan-app{padding-bottom:var(--fan-sp-3)}.fan-app-header{align-items:flex-start;flex-direction:column;gap:6px}.fan-app-meta,.fan-context-chips,.fan-panel-head{width:100%}.fan-panel-head{flex-direction:column;align-items:flex-start;gap:6px}.fan-overview-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-chart-canvas{height:112px}.fan-curve-canvas{height:250px}.fan-panel{padding:var(--fan-sp-3)}}`;
 
 /* Settings view only: mode tiles, preset sparklines, the draggable curve
  * editor, the precise-value table and the sticky save bar. Kept in the same
@@ -319,7 +321,10 @@ var SETTINGS_CSS = `
 .fan-note[data-level="warn"]{color:var(--fan-warn)}
 
 .fan-preset-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--fan-sp-2);margin:0 0 var(--fan-sp-2)}
-.fan-preset{position:relative;display:flex;flex-direction:column;gap:5px;padding:10px 11px;border:1px solid var(--fan-border);border-radius:var(--fan-r-md);background:var(--fan-surface-2);color:var(--fan-text);font:inherit;text-align:left;cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}
+/* Compact preset tiles: the sparkline shrinks to a 20px strip, hints stay
+ * but the tile loses its generous padding so the whole block reads as one
+ * compact selector row. */
+.fan-preset{position:relative;display:flex;flex-direction:column;gap:3px;padding:7px 9px;border:1px solid var(--fan-border);border-radius:var(--fan-r-md);background:var(--fan-surface-2);color:var(--fan-text);font:inherit;text-align:left;cursor:pointer;transition:border-color .16s,background .16s,box-shadow .16s}
 /* Same trick as the mode cards: the radio is invisible but stays focusable, so
  * the tile keeps its tab stop and the group keeps arrow-key selection. */
 .fan-preset-input{position:absolute;width:1px;height:1px;margin:0;opacity:0;pointer-events:none;clip:rect(0 0 0 0);overflow:hidden}
@@ -327,8 +332,8 @@ var SETTINGS_CSS = `
 .fan-preset:focus-visible,.fan-preset:has(.fan-preset-input:focus-visible){outline:2px solid var(--fan-info);outline-offset:2px}
 .fan-preset.is-on{border-color:var(--fan-level);background:var(--fan-level-tint);box-shadow:inset 0 0 0 1px var(--fan-level)}
 .fan-preset-name{font-size:13px;font-weight:500;line-height:1.3}
-.fan-preset-spark{display:block;width:100%;height:34px}
-.fan-preset-hint{font-size:11px;line-height:1.35;color:var(--fan-muted)}
+.fan-preset-spark{display:block;width:100%;height:20px}
+.fan-preset-hint{font-size:11px;line-height:1.3;color:var(--fan-muted)}
 .fan-preset.is-on .fan-preset-hint{color:var(--fan-level)}
 .fan-curve-live{font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 
