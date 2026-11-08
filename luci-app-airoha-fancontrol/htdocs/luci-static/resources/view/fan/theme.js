@@ -128,7 +128,14 @@ var COMPONENT_CSS = `
 
 .fan-app-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--fan-sp-2);margin:0 0 var(--fan-sp-4);padding:9px var(--fan-sp-4);background:var(--fan-surface-2);border:1px solid var(--fan-border);border-radius:var(--fan-r-md)}
 .fan-app-meta{display:flex;align-items:center;flex-wrap:wrap;gap:var(--fan-sp-2);font-size:12px;color:var(--fan-muted)}
-.fan-context-label{font-size:12px;line-height:1.5;color:var(--fan-muted)}
+/* The merged page has no tab strip to carry its name, so the header owns a
+ * real title row: icon + page name, the freshness indicator beside it and the
+ * context chips on the right. */
+.fan-app-title{display:flex;align-items:center;flex-wrap:wrap;gap:10px;min-width:0}
+.fan-app-title .fan-icon{width:28px;height:28px;border-radius:var(--fan-r-md)}
+.fan-app-title .fan-icon svg{width:17px;height:17px}
+.fan-app-title-text{font-size:16px;font-weight:600;line-height:1.3;color:var(--fan-text);white-space:nowrap}
+.fan-app-title .fan-live,.fan-app-title .fan-app-meta{font-size:12px;color:var(--fan-muted)}
 .fan-context-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .fan-context-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border:1px solid var(--fan-border);border-radius:var(--fan-r-pill);background:var(--fan-surface);font-size:11px;font-weight:500;color:var(--fan-text);white-space:nowrap}
 .fan-context-chip:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--fan-info);flex:none}
@@ -145,8 +152,16 @@ var COMPONENT_CSS = `
 .fan-live-dot[data-state="stale"]{background:var(--fan-error)}
 .fan-live-dot[data-state="pending"]{background:var(--fan-muted)}
 
-.fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:var(--fan-gap);margin:0 0 var(--fan-sp-4)}
-.fan-summary-card{position:relative;background:var(--fan-surface);border:1px solid var(--fan-border);border-left:3px solid var(--fan-level);border-radius:var(--fan-r-card);padding:var(--fan-sp-3) var(--fan-sp-4);min-height:104px;display:flex;flex-direction:column;gap:5px}
+/* One row combining the editable mode choice with the running-config
+ * summary cards: segmented control first, then the four cards. */
+.fan-overview-grid{display:grid;grid-template-columns:minmax(150px,.85fr) repeat(4,minmax(0,1fr));gap:var(--fan-gap);align-items:stretch}
+.fan-mode-cell{display:flex;align-items:center;justify-content:center;padding:var(--fan-sp-2) var(--fan-sp-3);background:var(--fan-surface-2);border:1px solid var(--fan-border);border-left:3px solid var(--fan-level);border-radius:var(--fan-r-md);min-width:0}
+.fan-seg{display:flex;gap:3px;width:100%;padding:3px;background:var(--fan-track);border-radius:var(--fan-r-md)}
+.fan-seg-btn{flex:1;min-width:0;min-height:32px;padding:0 10px;border:0;border-radius:calc(var(--fan-r-md) - 2px);background:transparent;color:var(--fan-muted);font:inherit;font-size:13px;font-weight:500;line-height:1.3;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .16s,color .16s,box-shadow .16s}
+.fan-seg-btn:hover{color:var(--fan-text)}
+.fan-seg-btn.is-on{background:var(--fan-surface);color:var(--fan-level);box-shadow:0 1px 4px var(--fan-shadow)}
+.fan-seg-btn:focus-visible{outline:2px solid var(--fan-info);outline-offset:1px}
+.fan-summary-card{position:relative;background:var(--fan-surface);border:1px solid var(--fan-border);border-left:3px solid var(--fan-level);border-radius:var(--fan-r-card);padding:var(--fan-sp-3) var(--fan-sp-4);min-height:104px;display:flex;flex-direction:column;gap:5px;min-width:0}
 .fan-card-top{display:flex;align-items:center;gap:var(--fan-sp-2);min-height:22px}
 .fan-icon{width:22px;height:22px;border-radius:var(--fan-r-sm);background:var(--fan-level-tint);display:inline-flex;align-items:center;justify-content:center;flex:none}
 .fan-icon svg{width:14px;height:14px;fill:none;stroke:var(--fan-level);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
@@ -252,9 +267,9 @@ var COMPONENT_CSS = `
 .fan-app .fan-curve-section .cbi-value.is-focused{box-shadow:0 0 0 2px var(--fan-info-soft)}
 @media(prefers-reduced-motion:reduce){.fan-app .fan-curve-section:not(.is-hidden){animation:none}.fan-temp-fill,.fan-app .cbi-value-field input,.fan-app .cbi-value-field select,.fan-app .cbi-button,.fan-summary-card,.fan-chart-card,.fan-temp-card{transition:none}.fan-app .cbi-button:hover{transform:none}}
 @media(pointer:coarse){.fan-app .cbi-value-field input,.fan-app .cbi-value-field select,.fan-app .cbi-button{min-height:44px}}
-@media(max-width:1050px){.fan-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}.fan-chart-grid{grid-template-columns:1fr}}
-@media(max-width:760px){.fan-app .fan-curve-section{grid-template-columns:1fr}.fan-app .fan-curve-section>h3,.fan-app .fan-curve-section>.cbi-section-descr,.fan-app .fan-curve-section>.fan-curve-point-head,.fan-app .fan-curve-section>.fan-curve-error{grid-column:auto}}
-@media(max-width:640px){.fan-app{padding-bottom:var(--fan-sp-3)}.fan-app-header{align-items:flex-start;flex-direction:column;gap:6px}.fan-app-meta,.fan-context-chips,.fan-panel-head{width:100%}.fan-panel-head{flex-direction:column;align-items:flex-start;gap:6px}.fan-app .cbi-section{padding:var(--fan-sp-3);margin:var(--fan-gap-sm) 0!important}.fan-app .cbi-value{display:block;padding:var(--fan-sp-3) 0}.fan-app .cbi-value-title{display:block;margin-bottom:7px}.fan-app .cbi-value-field{margin-left:0!important}.fan-app .fan-curve-section .cbi-value{padding:var(--fan-sp-3)}.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-summary-card{min-height:88px}.fan-chart-canvas{height:112px}.fan-curve-canvas{height:250px}.fan-panel{padding:var(--fan-sp-3)}}`;
+@media(max-width:1050px){.fan-overview-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.fan-mode-cell{grid-column:1/-1;padding:var(--fan-sp-3)}.fan-chart-grid{grid-template-columns:1fr}}
+@media(max-width:760px){.fan-app .fan-curve-section{grid-template-columns:1fr}.fan-overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fan-app .fan-curve-section>h3,.fan-app .fan-curve-section>.cbi-section-descr,.fan-app .fan-curve-section>.fan-curve-point-head,.fan-app .fan-curve-section>.fan-curve-error{grid-column:auto}}
+@media(max-width:640px){.fan-app{padding-bottom:var(--fan-sp-3)}.fan-app-header{align-items:flex-start;flex-direction:column;gap:6px}.fan-app-meta,.fan-context-chips,.fan-panel-head{width:100%}.fan-panel-head{flex-direction:column;align-items:flex-start;gap:6px}.fan-overview-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-summary-card{min-height:88px}.fan-chart-canvas{height:112px}.fan-curve-canvas{height:250px}.fan-panel{padding:var(--fan-sp-3)}}`;
 
 /* Settings view only: mode tiles, preset sparklines, the draggable curve
  * editor, the precise-value table and the sticky save bar. Kept in the same
@@ -263,23 +278,8 @@ var COMPONENT_CSS = `
  * problem described at the top of this file. */
 var SETTINGS_CSS = `
 .fan-panel[hidden]{display:none}
-.fan-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--fan-gap-sm)}
-.fan-choice{display:block;cursor:pointer;min-width:0}
-/* Visually hidden, but still focusable and in the tab order: the native radio
- * is what gives the tile group arrow-key behaviour and a screen-reader role. */
-.fan-choice-input{position:absolute;width:1px;height:1px;margin:0;opacity:0;pointer-events:none;clip:rect(0 0 0 0);overflow:hidden}
-.fan-choice-body{display:flex;align-items:flex-start;gap:var(--fan-sp-3);padding:12px 14px;border:1px solid var(--fan-border);border-left:3px solid var(--fan-level);border-radius:var(--fan-r-md);background:var(--fan-surface-2);transition:background .16s,border-color .16s,box-shadow .16s}
-.fan-choice:hover .fan-choice-body{border-color:var(--fan-info)}
-.fan-choice-body.is-on{background:var(--fan-level-tint);box-shadow:inset 0 0 0 1px var(--fan-level)}
-.fan-choice-input:focus-visible+.fan-choice-body{outline:2px solid var(--fan-info);outline-offset:2px}
-.fan-choice-icon{flex:none;width:34px;height:34px;border-radius:var(--fan-r-sm);display:inline-flex;align-items:center;justify-content:center;background:var(--fan-level-tint);color:var(--fan-level)}
-.fan-choice-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.fan-choice-text{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
-.fan-choice-title{font-size:14px;font-weight:500;line-height:1.35;color:var(--fan-text)}
-.fan-choice-desc{font-size:12px;line-height:1.45;color:var(--fan-muted)}
-.fan-choice-mark{flex:none;width:18px;height:18px;margin-top:2px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--fan-level);color:var(--fan-surface);opacity:0;transform:scale(.7);transition:opacity .16s,transform .16s}
-.fan-choice-mark svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
-.fan-choice-body.is-on .fan-choice-mark{opacity:1;transform:none}
+/* Mode selection moved into the compact .fan-seg segmented control in the
+ * overview row (styles live in COMPONENT_CSS next to the summary cards). */
 
 .fan-speed{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--fan-sp-3);flex-wrap:wrap}
 .fan-speed-value{display:flex;align-items:baseline;gap:2px;font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;color:var(--fan-text)}
@@ -356,8 +356,8 @@ var SETTINGS_CSS = `
 .fan-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
 @media(max-width:900px){.fan-preset-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:640px){.fan-choice-grid{grid-template-columns:1fr}.fan-editor-canvas{height:270px}.fan-speed-meta{align-items:flex-start;text-align:left}.fan-point-head,.fan-point-row{grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 44px;gap:6px}}
-@media(prefers-reduced-motion:reduce){.fan-choice-body,.fan-choice-mark,.fan-preset,.fan-chip,.fan-toast{transition:none}}`;
+@media(max-width:640px){.fan-editor-canvas{height:270px}.fan-speed-meta{align-items:flex-start;text-align:left}.fan-point-head,.fan-point-row{grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 44px;gap:6px}}
+@media(prefers-reduced-motion:reduce){.fan-seg-btn,.fan-preset,.fan-chip,.fan-toast{transition:none}}`;
 
 var styleEl = null;
 var lastDark = null;

@@ -3,27 +3,12 @@
 		"title": "Fan Control",
 		"order": 90,
 		"action": {
-			"type": "firstchild"
+			"type": "view",
+			"path": "fan/status"
 		},
 		"depends": {
 			"acl": [ "luci-app-airoha-fancontrol" ],
 			"uci": { "fan": true }
-		}
-	},
-	"admin/status/fan/status": {
-		"title": "Status",
-		"order": 1,
-		"action": {
-			"type": "view",
-			"path": "fan/status"
-		}
-	},
-	"admin/status/fan/settings": {
-		"title": "Settings",
-		"order": 2,
-		"action": {
-			"type": "view",
-			"path": "fan/settings"
 		}
 	}
 }
