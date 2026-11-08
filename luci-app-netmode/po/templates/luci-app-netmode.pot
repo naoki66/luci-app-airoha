@@ -227,3 +227,9 @@ msgstr ""
 
 msgid "WAN not configured"
 msgstr ""
+
+msgid "The LAN address %s is in the same subnet as the upstream network %s; the device may become unreachable after switching. Choose a different subnet, e.g. %s."
+msgstr ""
+
+msgid "Use suggested address %s"
+msgstr ""

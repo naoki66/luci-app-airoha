@@ -228,3 +228,9 @@ msgstr "WAN 未连接"
 
 msgid "WAN not configured"
 msgstr "WAN 未配置"
+
+msgid "The LAN address %s is in the same subnet as the upstream network %s; the device may become unreachable after switching. Choose a different subnet, e.g. %s."
+msgstr "LAN 地址 %s 与上游网络 %s 处于同一网段，切换后设备可能无法访问。请改用其他网段，例如 %s。"
+
+msgid "Use suggested address %s"
+msgstr "使用建议地址 %s"

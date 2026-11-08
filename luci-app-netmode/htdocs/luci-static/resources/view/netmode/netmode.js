@@ -162,6 +162,32 @@ function modeLabel(mode) {
 	return MODE_LABELS[mode] || _('Unknown mode');
 }
 
+function parseIp4(s) {
+	var m = String(s || '').match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+	if (!m) return null;
+	var o = m.slice(1).map(function(x) { return parseInt(x, 10); });
+	for (var i = 0; i < 4; i++)
+		if (o[i] > 255) return null;
+	return o;
+}
+
+/* The backend's set_lan_static always writes a /24, so two addresses share a
+ * subnet here iff their first three octets match. */
+function sameSubnet24(a, b) {
+	var x = parseIp4(a), y = parseIp4(b);
+	if (!x || !y) return false;
+	return x[0] === y[0] && x[1] === y[1] && x[2] === y[2];
+}
+
+/* Next /24 over from the conflicting one (bump the third octet), so the
+ * confirmation dialog can offer a one-click fix instead of making the user
+ * invent a free subnet themselves. */
+function suggestLanIp(ip) {
+	var o = parseIp4(ip) || [ 192, 168, 50, 1 ];
+	var c = (o[2] >= 254) ? 1 : (o[2] + 1);
+	return [ o[0], o[1], c, 1 ].join('.');
+}
+
 function infoCard(label, value, sub) {
 	return E('div', { 'class': 'nm-info' }, [
 		E('div', { 'class': 'nm-info-label' }, label),
@@ -333,6 +359,32 @@ return view.extend({
 				: _('The management address will be assigned by the upstream router.'))
 			: '';
 
+		/* Subnet conflict pre-check: set_lan_static makes the LAN a /24, so a
+		 * target LAN address in the same /24 as the upstream network would make
+		 * the device unreachable (or blackhole upstream traffic) right after
+		 * the switch. The upstream reference differs by current mode: in AP
+		 * mode network.wan is deleted, so the device's own lease on lan IS the
+		 * upstream subnet; in router mode the WAN address is. */
+		var subnetNotice = '';
+		if (mode !== 'ap') {
+			var targetIp = (this.lanIpInput.value || '').trim() || '192.168.50.1';
+			var upstreamIp = this.status.wan_ip ||
+				(this.status.mode === 'ap' ? (this.status.lan_ip || '') : '');
+			if (upstreamIp && sameSubnet24(targetIp, upstreamIp)) {
+				var sugg = suggestLanIp(targetIp);
+				var self = this;
+				subnetNotice = E('div', { 'class': 'nm-alert' }, [
+					E('p', { 'style': 'margin:0 0 8px' },
+						_('The LAN address %s is in the same subnet as the upstream network %s; the device may become unreachable after switching. Choose a different subnet, e.g. %s.')
+							.format(targetIp, upstreamIp, sugg)),
+					E('button', {
+						'class': 'cbi-button cbi-button-neutral',
+						'click': function() { self.lanIpInput.value = sugg; }
+					}, _('Use suggested address %s').format(sugg))
+				]);
+			}
+		}
+
 		if (mode === 'pppoe' && !(this.pppoeUserInput.value || '').trim()) {
 			ui.addNotification(null, E('p', _('Please enter the PPPoE account first.')));
 			return;
@@ -341,6 +393,7 @@ return view.extend({
 		return ui.showModal(_('Switch to %s').format(title), [
 			E('p', {}, summary),
 			notice ? E('div', { 'class': 'nm-alert' }, notice) : '',
+			subnetNotice,
 			E('p', { 'class': 'nm-muted' }, _('The configuration takes effect immediately and the network will be reloaded.')),
 			E('div', { 'class': 'right' }, [
 				E('button', {
