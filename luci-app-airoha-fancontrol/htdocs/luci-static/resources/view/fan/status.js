@@ -14,11 +14,13 @@
  * now live on one page in monitoring-first order:
  *
  *   1. header        - title, live freshness and context chips
- *   2. Temperatures  - the seven sensors, the reading users check first
+ *   2. Temperatures  - board sensor (drives the curve) on a full-width row,
+ *                      the remaining sensors in two groups below
  *   3. Real-time trends - the 2-minute history charts
- *   4. Control mode  - compact auto/manual segmented control sharing one row
- *                      with the four status summary cards
- *   5. Curve / fixed speed - the editable panels for the chosen mode
+ *   4. Control panel - auto/manual segmented control sharing one row with
+ *                      the four status summary cards, and (in automatic
+ *                      mode) the preset tiles + curve editor underneath
+ *   5. Fixed speed   - the manual-mode alternative to the curve editor
  *
  * Saving is explicit and uses the theme's own footer: the view implements
  * handleSave / handleSaveApply / handleReset, so Argon (or any theme) renders
@@ -78,9 +80,12 @@ var CHARTS = [
 		read: function(s) { return (s.fan_rpm || 0) + ' RPM'; } }
 ];
 
+/* The board sensor drives the fan curve, so it is the reading the page
+ * exists for: it gets its own full-width row above the other six. */
+var BOARD_GAUGE = { id: 'temp-board', key: 'temp_board', label: _('Board (Fan Curve)') };
+
 var SYSTEM_GAUGES = [
 	{ id: 'temp-cpu', key: 'temp_cpu', label: _('CPU') },
-	{ id: 'temp-board', key: 'temp_board', label: _('Board (Fan Curve)') },
 	{ id: 'temp-phy1', key: 'temp_phy1', label: _('10G PHY') },
 	{ id: 'temp-phy2', key: 'temp_phy2', label: _('Switch PHY') }
 ];
@@ -91,7 +96,7 @@ var WIFI_GAUGES = [
 	{ id: 'temp-wifi6g', key: 'wifi_6g', label: _('6 GHz Radio') }
 ];
 
-var ALL_GAUGES = SYSTEM_GAUGES.concat(WIFI_GAUGES);
+var ALL_GAUGES = [ BOARD_GAUGE ].concat(SYSTEM_GAUGES, WIFI_GAUGES);
 
 var PRESET_INFO = {
 	quiet: { value: _('Quiet'), sub: _('Low noise priority'), level: 'ok' },
@@ -355,7 +360,7 @@ function tempLegend() {
 	}));
 }
 
-function createTempGauge(gauge, temp) {
+function createTempGauge(gauge, temp, hero) {
 	var level = fanTheme.tempLevel(temp);
 	/* One continuous fill. Threshold positions are marked by the hairlines
 	 * below the scale, never by lines drawn across the bar. */
@@ -364,7 +369,9 @@ function createTempGauge(gauge, temp) {
 			'style': 'width:' + fanTheme.tempPercent(temp) + '%' })
 	];
 
-	return E('div', { 'id': gauge.id, 'class': 'fan-temp-card', 'data-level': level.key }, [
+	return E('div', { 'id': gauge.id,
+		'class': hero ? 'fan-temp-card fan-temp-card--hero' : 'fan-temp-card',
+		'data-level': level.key }, [
 		E('div', { 'class': 'fan-temp-row' }, [
 			E('span', { 'class': 'fan-temp-label' }, gauge.label),
 			E('span', { 'class': 'fan-temp-reading' }, [
@@ -401,6 +408,13 @@ function temperatureGroup(title, gauges, status) {
 		E('div', { 'class': 'fan-temp-list' }, gauges.map(function(gauge) {
 			return createTempGauge(gauge, status ? (status[gauge.key] || 0) : 0);
 		}))
+	]);
+}
+
+/* Full-width lead gauge for the board sensor. */
+function boardGauge(status) {
+	return E('div', { 'class': 'fan-temp-hero' }, [
+		createTempGauge(BOARD_GAUGE, status ? (status.temp_board || 0) : 0, true)
 	]);
 }
 
@@ -1179,7 +1193,7 @@ function syncMode() {
 		button.setAttribute('aria-pressed', on ? 'true' : 'false');
 	});
 	ui.manualPanel.hidden = state.mode !== 'manual';
-	ui.curvePanel.hidden = state.mode !== 'auto';
+	ui.curveBody.hidden = state.mode !== 'auto';
 }
 
 function syncManual() {
@@ -1398,12 +1412,15 @@ function buildUI() {
 		E('div', { 'class': 'fan-context-chips' }, [ modeChip, presetChip, tempChip, dirtyChip ])
 	]));
 
-	/* 1. Temperatures - the reading users open this page for, so it leads. */
+	/* 1. Temperatures - the reading users open this page for, so it leads.
+	 * The board sensor drives the fan curve and gets a full-width row; the
+	 * other sensors follow in two groups. */
 	root.appendChild(E('div', { 'class': 'fan-panel' }, [
 		E('div', { 'class': 'fan-panel-head' }, [
 			E('h2', { 'class': 'fan-panel-title' }, _('Temperatures')),
 			tempLegend()
 		]),
+		boardGauge(null),
 		E('div', { 'class': 'fan-temp-grid' }, [
 			temperatureGroup(_('System'), SYSTEM_GAUGES, null),
 			temperatureGroup(_('WiFi'), WIFI_GAUGES, null)
@@ -1421,10 +1438,11 @@ function buildUI() {
 		}))
 	]));
 
-	/* 3. Control mode + status overview in one row: the compact auto/manual
-	 * segmented control sits beside the four running-config summary cards.
-	 * The segment shows the editable choice (with the dirty chip flagging
-	 * unsaved changes), the cards show what the fan is doing right now. */
+	/* 3. Control panel: the mode choice, the running-config summary cards and
+	 * the curve editor live in ONE panel. In manual mode the curve body is
+	 * swapped for the fixed-speed panel below. The segment shows the editable
+	 * choice (with the dirty chip flagging unsaved changes), the cards show
+	 * what the fan is doing right now. */
 	var modeCell = E('div', { 'class': 'fan-mode-cell', 'data-level': 'info' }, [
 		E('div', { 'class': 'fan-seg', 'role': 'group',
 			'aria-label': _('Control mode') }, [
@@ -1433,16 +1451,70 @@ function buildUI() {
 		])
 	]);
 
-	root.appendChild(E('div', { 'class': 'fan-panel fan-overview-panel' }, [
+	/* Curve sub-block inside the merged panel; hidden in manual mode. */
+	var presetTiles = PRESETS.map(presetTile);
+	var sparks = {};
+	presetTiles.forEach(function(tile) { sparks[tile.getAttribute('data-preset')] = tile.spark; });
+
+	var curveLive = E('span', { 'class': 'fan-panel-hint fan-curve-live' }, '');
+	var canvas = E('canvas', {
+		'class': 'fan-editor-canvas',
+		/* application, not img: the canvas is a keyboard-editable curve, and
+		 * role=img would tell screen readers to skip its keys. */
+		'role': 'application', 'tabindex': '0',
+		'aria-label': _('Fan curve editor')
+	});
+	var tip = E('div', { 'class': 'fan-editor-tip', 'aria-hidden': 'true' });
+	var editor = E('div', { 'class': 'fan-editor' }, [ canvas, tip ]);
+
+	var resetBtn = E('button', { 'type': 'button', 'class': 'fan-link' }, _('Reset curve'));
+	resetBtn.addEventListener('click', resetCurve);
+
+	var rows = [];
+	var pointsBody = E('div', { 'class': 'fan-points' }, [
+		E('div', { 'class': 'fan-point-head' }, [
+			E('span', {}, '#'),
+			E('span', {}, _('Temperature °C')),
+			E('span', {}, _('PWM')),
+			E('span', {}, _('Output'))
+		])
+	]);
+	for (var i = 0; i < 5; i++) {
+		var row = pointRow(i);
+		rows.push(row);
+		pointsBody.appendChild(row.node);
+	}
+
+	var presetNote = E('p', { 'class': 'fan-note' }, '');
+	var curveHint = E('div', { 'class': 'fan-panel-hint fan-curve-tip' }, '');
+
+	var curveBody = E('div', { 'class': 'fan-curve-body' }, [
+		E('div', { 'class': 'fan-control-subhead' }, [
+			E('h3', { 'class': 'fan-subhead-title' }, _('Temperature curve')),
+			curveLive
+		]),
+		E('div', { 'class': 'fan-preset-grid', 'role': 'group',
+			'aria-label': _('Curve presets') }, presetTiles),
+		presetNote,
+		editor,
+		E('div', { 'class': 'fan-editor-foot' }, [ curveHint, resetBtn ]),
+		E('details', { 'class': 'fan-precise' }, [
+			E('summary', {}, _('Precise values')),
+			pointsBody
+		])
+	]);
+
+	root.appendChild(E('div', { 'class': 'fan-panel fan-control-panel' }, [
 		E('div', { 'class': 'fan-panel-head' }, [
 			E('h2', { 'class': 'fan-panel-title' }, _('Control Mode')),
 			E('span', { 'class': 'fan-panel-hint' }, _('One choice, applied to the whole fan'))
 		]),
 		E('div', { 'class': 'fan-overview-grid' },
-			[ modeCell ].concat(summaryData(null).map(summaryCard)))
+			[ modeCell ].concat(summaryData(null).map(summaryCard))),
+		curveBody
 	]));
 
-	/* 4a. Manual speed */
+	/* 5. Manual speed - the manual-mode alternative to the curve body. */
 	var manualValue = E('strong', {}, '50');
 	var manualPwm = E('b', {}, 'PWM 128');
 	var slider = E('input', {
@@ -1481,60 +1553,6 @@ function buildUI() {
 	]);
 	root.appendChild(manualPanel);
 
-	/* 4b. Curve */
-	var presetTiles = PRESETS.map(presetTile);
-	var sparks = {};
-	presetTiles.forEach(function(tile) { sparks[tile.getAttribute('data-preset')] = tile.spark; });
-
-	var curveLive = E('span', { 'class': 'fan-panel-hint fan-curve-live' }, '');
-	var canvas = E('canvas', {
-		'class': 'fan-editor-canvas',
-		/* application, not img: the canvas is a keyboard-editable curve, and
-		 * role=img would tell screen readers to skip its keys. */
-		'role': 'application', 'tabindex': '0',
-		'aria-label': _('Fan curve editor')
-	});
-	var tip = E('div', { 'class': 'fan-editor-tip', 'aria-hidden': 'true' });
-	var editor = E('div', { 'class': 'fan-editor' }, [ canvas, tip ]);
-
-	var resetBtn = E('button', { 'type': 'button', 'class': 'fan-link' }, _('Reset curve'));
-	resetBtn.addEventListener('click', resetCurve);
-
-	var rows = [];
-	var pointsBody = E('div', { 'class': 'fan-points' }, [
-		E('div', { 'class': 'fan-point-head' }, [
-			E('span', {}, '#'),
-			E('span', {}, _('Temperature °C')),
-			E('span', {}, _('PWM')),
-			E('span', {}, _('Output'))
-		])
-	]);
-	for (var i = 0; i < 5; i++) {
-		var row = pointRow(i);
-		rows.push(row);
-		pointsBody.appendChild(row.node);
-	}
-
-	var presetNote = E('p', { 'class': 'fan-note' }, '');
-	var curveHint = E('div', { 'class': 'fan-panel-hint fan-curve-tip' }, '');
-
-	var curvePanel = E('section', { 'class': 'fan-panel fan-curve-panel' }, [
-		E('div', { 'class': 'fan-panel-head' }, [
-			E('h2', { 'class': 'fan-panel-title' }, _('Temperature curve')),
-			curveLive
-		]),
-		E('div', { 'class': 'fan-preset-grid', 'role': 'group',
-			'aria-label': _('Curve presets') }, presetTiles),
-		presetNote,
-		editor,
-		E('div', { 'class': 'fan-editor-foot' }, [ curveHint, resetBtn ]),
-		E('details', { 'class': 'fan-precise' }, [
-			E('summary', {}, _('Precise values')),
-			pointsBody
-		])
-	]);
-	root.appendChild(curvePanel);
-
 	/* No save bar here on purpose: the theme renders Save & Apply / Save /
 	 * Reset from the view's handleSave* callbacks (luci.js addFooter). */
 	var announce = E('div', { 'class': 'fan-sr', 'aria-live': 'polite' }, '');
@@ -1559,7 +1577,7 @@ function buildUI() {
 		manualNote: manualNote,
 		slider: slider,
 		quick: quick,
-		curvePanel: curvePanel,
+		curveBody: curveBody,
 		curveLive: curveLive,
 		curveHint: curveHint,
 		presetNote: presetNote,

@@ -110,6 +110,10 @@ var DARK = `
 var COMPONENT_CSS = `
 .fan-app{box-sizing:border-box;max-width:1180px;margin:0 auto;padding:0 0 var(--fan-sp-6);font-family:var(--fan-font-ui);font-size:13px;line-height:1.5;color:var(--fan-text);-webkit-font-smoothing:antialiased}
 .fan-app *,.fan-app *:before,.fan-app *:after{box-sizing:border-box}
+/* Argon 3.1 styles bare h2/h3 as raised card headers (padding, surface
+ * background, radius, shadow). Our panels draw their own flat titles, so
+ * strip the theme card chrome first; the classes below restyle. */
+.fan-app h2,.fan-app h3{margin:0;padding:0;background:none;border:0;border-radius:0;box-shadow:none;display:block;width:auto;font-family:var(--fan-font-ui)}
 .fan-app h2,.fan-app h3,.fan-app .cbi-button,.fan-app input,.fan-app select{font-family:var(--fan-font-ui)}
 .fan-app :focus-visible{outline:2px solid var(--fan-info);outline-offset:2px}
 .fan-app .cbi-value-field input:focus-visible,.fan-app .cbi-value-field select:focus-visible{outline:0;box-shadow:0 0 0 3px var(--fan-info-soft)}
@@ -188,6 +192,11 @@ var COMPONENT_CSS = `
 .fan-chart-legend{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--fan-muted)}
 .fan-chart-swatch{width:10px;height:10px;border-radius:2px;background:var(--fan-level);flex:none}
 
+/* Board sensor leads the panel on its own full-width row. */
+.fan-temp-hero{margin:0 0 var(--fan-gap-sm)}
+.fan-temp-card--hero .fan-temp-label{font-size:14px;font-weight:500}
+.fan-temp-card--hero .fan-temp-value{font-size:20px}
+.fan-temp-card--hero .fan-temp-track{height:14px}
 .fan-temp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--fan-sp-4)}
 .fan-temp-group{min-width:0}
 .fan-temp-group-title{font-size:12px;font-weight:500;letter-spacing:.02em;color:var(--fan-muted);margin:0 0 var(--fan-sp-2)}
@@ -278,6 +287,12 @@ var COMPONENT_CSS = `
  * problem described at the top of this file. */
 var SETTINGS_CSS = `
 .fan-panel[hidden]{display:none}
+.fan-curve-body[hidden]{display:none}
+/* Sub-heading that splits the merged control panel: mode choice + summary
+ * cards above the line, curve editor below it. */
+.fan-control-subhead{display:flex;align-items:baseline;justify-content:space-between;gap:var(--fan-sp-2);margin:var(--fan-sp-4) 0 0;padding-top:var(--fan-sp-3);border-top:1px solid var(--fan-border)}
+.fan-subhead-title{margin:0;font-size:14px;line-height:1.4;font-weight:500;color:var(--fan-text)}
+.fan-curve-body .fan-preset-grid{margin-top:var(--fan-sp-3)}
 /* Mode selection moved into the compact .fan-seg segmented control in the
  * overview row (styles live in COMPONENT_CSS next to the summary cards). */
 
