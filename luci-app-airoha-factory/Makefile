@@ -16,35 +16,24 @@ LUCI_DESCRIPTION:=Reads and modifies XR1710G factory provisioning data \
 	"factory" volume and keeps the U-Boot environment in sync.
 LUCI_DEPENDS:=+luci-base +uboot-envtools +ubi-utils
 
-include $(TOPDIR)/feeds/luci/luci.mk
-
-define Package/$(LUCI_NAME)/install
-	# LuCI frontend view
-	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/airoha_factory
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/airoha_factory/factory.js \
-		$(1)/www/luci-static/resources/view/airoha_factory/
-
-	# RPC backend script (executable)
-	$(INSTALL_DIR) $(1)/usr/libexec/rpcd
-	$(INSTALL_BIN) ./root/usr/libexec/rpcd/luci.airoha_factory \
-		$(1)/usr/libexec/rpcd/
-
-	# NOTE: /etc/fw_env.config is intentionally NOT installed any more.  It
-	# belongs to uboot-envtools, which appends the redundant UBI entries;
-	# shipping a /dev/mtd0 entry here put an MTD device in front of the UBI
-	# ones and broke every bare fw_printenv/fw_setenv call.  The vendor env
-	# config is written to /etc/fw_env.factory.config by ensure_env_conf().
-
-	# LuCI menu configuration
-	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
-	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-airoha-factory.json \
-		$(1)/usr/share/luci/menu.d/
-
-	# RPC ACL configuration
-	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
-	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-airoha-factory.json \
-		$(1)/usr/share/rpcd/acl.d/
-endef
+# -- Packaging contract with feeds/luci/luci.mk --------------------------------
+# luci.mk ends with
+#   $(foreach pkg,$(LUCI_BUILD_PACKAGES),$(eval $(call BuildPackage,$(pkg))))
+# and include/package-pack.mk expands `$(call Package/$(1)/install, ...)` while
+# that eval happens; BuildPackVariable does the same for postinst/prerm/conffiles.
+# A `define` written AFTER the include is therefore too late - the install rule
+# has already captured luci.mk's default. That is why the old custom install
+# (and any menu.d entries it installed) never reached the generated apk.
+#
+# This Makefile now keeps every define BEFORE the include, which is at the
+# bottom of the file, and does NOT redefine Package/.../install. luci.mk's
+# default install already ships everything under the source tree:
+#   htdocs/*  -> $(1)/www/   (cp -pR, then JsMin / CssTidy)
+#   root/*    -> $(1)/       (cp -pR, preserves the git exec bit)
+# Anything the default cannot express is done in the official
+# `Build/Prepare/$(LUCI_NAME)` hook on the staged copy of the tree.
+# luci.mk guards its own postinst with `ifndef`, so defining it here wins.
+# ------------------------------------------------------------------------------
 
 define Package/$(LUCI_NAME)/postinst
 #!/bin/sh
@@ -88,5 +77,7 @@ define Package/$(LUCI_NAME)/prerm
 
 exit 0
 endef
+
+include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature

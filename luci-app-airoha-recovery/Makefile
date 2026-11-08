@@ -14,25 +14,24 @@ LUCI_DESCRIPTION:=Reboots the device into the U-Boot HTTP recovery environment. 
 	unchanged.
 LUCI_DEPENDS:=+luci-base +uboot-envtools
 
-include $(TOPDIR)/feeds/luci/luci.mk
-
-define Package/$(LUCI_NAME)/install
-	# Install LuCI frontend views
-	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/airoha_recovery
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/airoha_recovery/recovery.js $(1)/www/luci-static/resources/view/airoha_recovery/
-
-	# Install RPC backend script (executable)
-	$(INSTALL_DIR) $(1)/usr/libexec/rpcd
-	$(INSTALL_BIN) ./root/usr/libexec/rpcd/luci.airoha_recovery $(1)/usr/libexec/rpcd/
-
-	# Install LuCI menu configuration
-	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
-	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-airoha-recovery.json $(1)/usr/share/luci/menu.d/
-
-	# Install RPC ACL configuration
-	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
-	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-airoha-recovery.json $(1)/usr/share/rpcd/acl.d/
-endef
+# -- Packaging contract with feeds/luci/luci.mk --------------------------------
+# luci.mk ends with
+#   $(foreach pkg,$(LUCI_BUILD_PACKAGES),$(eval $(call BuildPackage,$(pkg))))
+# and include/package-pack.mk expands `$(call Package/$(1)/install, ...)` while
+# that eval happens; BuildPackVariable does the same for postinst/prerm/conffiles.
+# A `define` written AFTER the include is therefore too late - the install rule
+# has already captured luci.mk's default. That is why the old custom install
+# (and any menu.d entries it installed) never reached the generated apk.
+#
+# This Makefile now keeps every define BEFORE the include, which is at the
+# bottom of the file, and does NOT redefine Package/.../install. luci.mk's
+# default install already ships everything under the source tree:
+#   htdocs/*  -> $(1)/www/   (cp -pR, then JsMin / CssTidy)
+#   root/*    -> $(1)/       (cp -pR, preserves the git exec bit)
+# Anything the default cannot express is done in the official
+# `Build/Prepare/$(LUCI_NAME)` hook on the staged copy of the tree.
+# luci.mk guards its own postinst with `ifndef`, so defining it here wins.
+# ------------------------------------------------------------------------------
 
 define Package/$(LUCI_NAME)/postinst
 #!/bin/sh
@@ -57,5 +56,7 @@ define Package/$(LUCI_NAME)/prerm
 
 exit 0
 endef
+
+include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature

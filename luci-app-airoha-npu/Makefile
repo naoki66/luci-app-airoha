@@ -46,84 +46,40 @@ LUCI_DEPENDS:=+luci-base +kmod-br-netfilter \
 	+@BUSYBOX_DEFAULT_DEVMEM \
 	+@BUSYBOX_CONFIG_DEVMEM
 
-include $(TOPDIR)/feeds/luci/luci.mk
-
-# Ship the two boot-time scripts with the exec bit *verified*.
+# -- Packaging contract with feeds/luci/luci.mk --------------------------------
+# luci.mk ends with
+#   $(foreach pkg,$(LUCI_BUILD_PACKAGES),$(eval $(call BuildPackage,$(pkg))))
+# and include/package-pack.mk expands `$(call Package/$(1)/install, ...)` while
+# that eval happens; BuildPackVariable does the same for postinst/prerm/conffiles.
+# A `define` written AFTER the include is therefore too late - the install rule
+# has already captured luci.mk's default. That is why the old custom install
+# (and any menu.d entries it installed) never reached the generated apk.
 #
-# This feed is checked out with core.filemode=false on more than one build host,
-# which drops the exec bit recorded in git: the file then lands in the tree as
-# 0644/0664 and every path that copies it verbatim (image `files/` overlays,
-# `cp` without -p, ...) propagates that. /etc/rc.d/S89airoha-npu was present
-# and enabled while /etc/init.d/airoha-npu was 0664, so boot ran it as
-# "Permission denied" (rc 126) and the rpcd backend it re-registers stayed
-# missing until someone reloaded rpcd by hand.
-#
-# $(INSTALL_BIN) alone does not catch it: it chmods the *destination*, so a
-# build that never goes through this recipe still ships a dead script. Fail
-# loudly here instead of shipping a service that cannot start.
-#
-# $(1) source, $(2) destination
-define Npu/install-exec
-	$(INSTALL_DIR) $(dir $(2))
-	[ -f $(1) ] || { echo "luci-app-airoha-npu: missing source $(1)" >&2; exit 1; }
-	[ -x $(1) ] || { \
-		echo "luci-app-airoha-npu: $(1) has no exec bit (mode $$(stat -c '%a' $(1) 2>/dev/null)); the build host lost it (core.filemode=false?) and the service cannot start" >&2; \
-		exit 1; \
-	}
-	$(INSTALL_BIN) $(1) $(2)
-	chmod 0755 $(2)
-	[ -x $(2) ] || { \
-		echo "luci-app-airoha-npu: $(2) shipped without the exec bit (mode $$(stat -c '%a' $(2) 2>/dev/null))" >&2; \
-		exit 1; \
-	}
-endef
+# This Makefile now keeps every define BEFORE the include, which is at the
+# bottom of the file, and does NOT redefine Package/.../install. luci.mk's
+# default install already ships everything under the source tree:
+#   htdocs/*  -> $(1)/www/   (cp -pR, then JsMin / CssTidy)
+#   root/*    -> $(1)/       (cp -pR, preserves the git exec bit)
+# Anything the default cannot express is done in the official
+# `Build/Prepare/$(LUCI_NAME)` hook on the staged copy of the tree.
+# luci.mk guards its own postinst with `ifndef`, so defining it here wins.
+# ------------------------------------------------------------------------------
 
-define Package/$(LUCI_NAME)/install
-	# Install the unified SoC/NPU view.
-	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/airoha_npu
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/airoha_npu/status.js $(1)/www/luci-static/resources/view/airoha_npu/
-
-	# Install the shared design system consumed by the status view.
-	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/airoha
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/airoha/ds-tokens.js $(1)/www/luci-static/resources/view/airoha/
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/airoha/ui.js $(1)/www/luci-static/resources/view/airoha/
-
-	# Install UCI configuration
-	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_DATA) ./root/etc/config/npu-monitor $(1)/etc/config/
-
-	# Install init.d scripts (executable, exec bit verified)
-	$(call Npu/install-exec,./root/etc/init.d/npu-jitter,$(1)/etc/init.d/npu-jitter)
-
-	# Install NPU jitter daemon (executable)
-	$(INSTALL_DIR) $(1)/usr/libexec
-	$(INSTALL_BIN) ./root/usr/libexec/npu-jitter-daemon $(1)/usr/libexec/
-	$(INSTALL_DATA) ./root/usr/libexec/airoha-ppe.awk $(1)/usr/libexec/
-
-	# Install RPC backend scripts (executable) together with the shared helpers,
-	# so airoha-common.sh ships inside this package (no cross-package dependency).
-	$(INSTALL_DIR) $(1)/usr/libexec/rpcd
-	$(INSTALL_BIN) ./root/usr/libexec/rpcd/luci.airoha_npu $(1)/usr/libexec/rpcd/
-	$(INSTALL_BIN) ./root/usr/libexec/rpcd/airoha-common.sh $(1)/usr/libexec/rpcd/
-
-	# Install LuCI menu configuration.
-	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
-	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-airoha-npu.json $(1)/usr/share/luci/menu.d/
-
-	# Install RPC ACL configuration.
-	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
-	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json $(1)/usr/share/rpcd/acl.d/
-
-	# Preserve runtime-created acceleration settings during sysupgrade.
-	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
-	$(INSTALL_DATA) ./root/lib/upgrade/keep.d/luci-app-airoha-npu $(1)/lib/upgrade/keep.d/
-
-	# Install the init script that re-registers the rpcd backend at boot.
-	# Bake the rc.d symlink so the service is enabled on a freshly flashed image too
-	# (the postinst 'enable' only runs on a running device, not during image build).
-	$(call Npu/install-exec,./root/etc/init.d/airoha-npu,$(1)/etc/init.d/airoha-npu)
-	$(INSTALL_DIR) $(1)/etc/rc.d
-	ln -sf ../init.d/airoha-npu $(1)/etc/rc.d/S89airoha-npu
+# The exec bit is load-bearing: a 0664 init script fails at boot with rc 126 and
+# the rpcd backend never gets re-registered. Some build hosts check out with
+# core.filemode=false, which drops the bit recorded in git, so repair it on the
+# staged tree and verify the staged files instead of trusting the checkout.
+# The rc.d link must be baked into the image too: postinst exits early during
+# image builds (IPKG_INSTROOT is set), so `enable` alone cannot enable the
+# service on a freshly flashed device.
+define Build/Prepare/luci-app-airoha-npu
+	chmod 0755 $(PKG_BUILD_DIR)/root/etc/init.d/airoha-npu $(PKG_BUILD_DIR)/root/etc/init.d/npu-jitter $(PKG_BUILD_DIR)/root/usr/libexec/npu-jitter-daemon $(PKG_BUILD_DIR)/root/usr/libexec/rpcd/luci.airoha_npu
+	[ -x $(PKG_BUILD_DIR)/root/etc/init.d/airoha-npu ] || { echo "luci-app-airoha-npu: staged init script is not executable" >&2; exit 1; }
+	[ -x $(PKG_BUILD_DIR)/root/etc/init.d/npu-jitter ] || { echo "luci-app-airoha-npu: staged jitter init script is not executable" >&2; exit 1; }
+	[ -x $(PKG_BUILD_DIR)/root/usr/libexec/npu-jitter-daemon ] || { echo "luci-app-airoha-npu: staged jitter daemon is not executable" >&2; exit 1; }
+	[ -x $(PKG_BUILD_DIR)/root/usr/libexec/rpcd/luci.airoha_npu ] || { echo "luci-app-airoha-npu: staged rpcd backend is not executable" >&2; exit 1; }
+	$(INSTALL_DIR) $(PKG_BUILD_DIR)/root/etc/rc.d
+	ln -sf ../init.d/airoha-npu $(PKG_BUILD_DIR)/root/etc/rc.d/S89airoha-npu
 endef
 
 define Package/$(LUCI_NAME)/conffiles
@@ -181,6 +137,8 @@ define Package/$(LUCI_NAME)/prerm
 
 exit 0
 endef
+
+include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature
 #

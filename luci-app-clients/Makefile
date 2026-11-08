@@ -52,6 +52,30 @@ PKG_LICENSE:=Apache-2.0
 # commented it out. Both steps are no-ops on a box that never ran the old
 # version.
 
+# -- Packaging contract with feeds/luci/luci.mk --------------------------------
+# luci.mk ends with
+#   $(foreach pkg,$(LUCI_BUILD_PACKAGES),$(eval $(call BuildPackage,$(pkg))))
+# and include/package-pack.mk expands `$(call Package/$(1)/install, ...)` while
+# that eval happens; BuildPackVariable does the same for postinst/prerm/conffiles.
+# A `define` written AFTER the include is therefore too late - the install rule
+# has already captured luci.mk's default. That is why the old custom install
+# (and any menu.d entries it installed) never reached the generated apk.
+#
+# This Makefile now keeps every define BEFORE the include, which is at the
+# bottom of the file, and does NOT redefine Package/.../install. luci.mk's
+# default install already ships everything under the source tree:
+#   htdocs/*  -> $(1)/www/   (cp -pR, then JsMin / CssTidy)
+#   root/*    -> $(1)/       (cp -pR, preserves the git exec bit)
+# Anything the default cannot express is done in the official
+# `Build/Prepare/$(LUCI_NAME)` hook on the staged copy of the tree.
+# luci.mk guards its own postinst with `ifndef`, so defining it here wins.
+# ------------------------------------------------------------------------------
+
+# Preserve the operator's client settings across sysupgrade.
+define Package/luci-app-clients/conffiles
+/etc/config/clients
+endef
+
 define Package/luci-app-clients/postinst
 [ -n "$${IPKG_INSTROOT}" ] || { \
 	uci -q delete dhcp.@dnsmasq[0].logqueries; \

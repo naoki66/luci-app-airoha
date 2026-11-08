@@ -22,66 +22,45 @@ LUCI_DESCRIPTION:=Join two XR1710G units: native 802.11s wireless mesh, or wired
 LUCI_DEPENDS:=+luci-base +rpcd +jsonfilter +iw +uhttpd +uclient-fetch +socat +wpad-mesh-mbedtls +dawn
 LUCI_PKGARCH:=all
 
-include $(TOPDIR)/feeds/luci/luci.mk
-
-# Files are stripped of CR and installed from a *regular* file, never through
-# `| install -m <mode> /dev/stdin <dst>`. That form shipped
-# /usr/sbin/meshconf-beacon as 0664 on a real device: procd could not exec it,
-# so no instance ever spawned, `ubus call service list {"name":"meshconf"}`
-# answered {} and the page reported "service not running" - with an empty
-# logread, because nothing had failed loudly enough to log.
+# -- Packaging contract with feeds/luci/luci.mk --------------------------------
+# luci.mk ends with
+#   $(foreach pkg,$(LUCI_BUILD_PACKAGES),$(eval $(call BuildPackage,$(pkg))))
+# and include/package-pack.mk expands `$(call Package/$(1)/install, ...)` while
+# that eval happens; BuildPackVariable does the same for postinst/prerm/conffiles.
+# A `define` written AFTER the include is therefore too late - the install rule
+# has already captured luci.mk's default. That is why the old custom install
+# (and any menu.d entries it installed) never reached the generated apk.
 #
-# The exec bit is the only thing keeping this package alive (the postinst
-# chmods do not run when the package is built into the image: IPKG_INSTROOT is
-# set and it exits early), so the recipe verifies it instead of trusting it.
-#
-# The CR strip is belt and braces: .gitattributes already pins this package to
-# LF, but a CRLF shebang fails exactly like a missing exec bit, and this
-# package has shipped a dead rpcd plugin twice before.
-MESHCONF_STAGE:=$(TMP_DIR)/luci-app-mesh-conf
+# This Makefile now keeps every define BEFORE the include, which is at the
+# bottom of the file, and does NOT redefine Package/.../install. luci.mk's
+# default install already ships everything under the source tree:
+#   htdocs/*  -> $(1)/www/   (cp -pR, then JsMin / CssTidy)
+#   root/*    -> $(1)/       (cp -pR, preserves the git exec bit)
+# Anything the default cannot express is done in the official
+# `Build/Prepare/$(LUCI_NAME)` hook on the staged copy of the tree.
+# luci.mk guards its own postinst with `ifndef`, so defining it here wins.
+# ------------------------------------------------------------------------------
 
-# $(1) source, $(2) destination, $(3) mode
-define MeshConf/install-file
-	$(INSTALL_DIR) $(MESHCONF_STAGE) $(dir $(2))
-	[ -f $(1) ] || { echo "luci-app-mesh-conf: missing source $(1)" >&2; exit 1; }
-	tr -d '\r' < $(1) > $(MESHCONF_STAGE)/$(notdir $(2))
-	install -m $(3) $(MESHCONF_STAGE)/$(notdir $(2)) $(2)
+# CRLF in a shebang ("/bin/sh\r") or in a view kills the rpcd plugin. This
+# package has shipped a dead backend twice, so strip CR from the staged copy
+# even though .gitattributes already pins LF. Repair and verify the exec bits
+# the same way: procd silently skips a 0664 /usr/sbin/meshconf-beacon, which
+# shows up only as "service not running" with an empty logread.
+# The rc.d link is baked into the image because postinst is skipped during
+# image builds (IPKG_INSTROOT is set).
+define Build/Prepare/luci-app-mesh-conf
+	$(FIND) $(PKG_BUILD_DIR)/root $(PKG_BUILD_DIR)/htdocs -type f | $(XARGS) perl -pi -e 's/\r//g'
+	chmod 0755 $(PKG_BUILD_DIR)/root/usr/libexec/rpcd/luci.meshconf $(PKG_BUILD_DIR)/root/usr/sbin/meshconf-beacon $(PKG_BUILD_DIR)/root/usr/share/meshconf/www/cgi/sync $(PKG_BUILD_DIR)/root/etc/init.d/meshconf
+	[ -x $(PKG_BUILD_DIR)/root/usr/sbin/meshconf-beacon ] || { echo "luci-app-mesh-conf: staged beacon is not executable; procd cannot start it" >&2; exit 1; }
+	$(INSTALL_DIR) $(PKG_BUILD_DIR)/root/etc/rc.d
+	ln -sf ../init.d/meshconf $(PKG_BUILD_DIR)/root/etc/rc.d/S95meshconf
 endef
 
-# $(1) source, $(2) destination - 0755, and fail the build if it does not take
-define MeshConf/install-exec
-	$(call MeshConf/install-file,$(1),$(2),0755)
-	chmod 0755 $(2)
-	[ -x $(2) ] || { \
-		echo "luci-app-mesh-conf: $(2) shipped without the exec bit (mode $$(stat -c '%a' $(2) 2>/dev/null)); procd cannot start it" >&2; \
-		exit 1; \
-	}
-endef
-
-define Package/$(LUCI_NAME)/install
-	$(call MeshConf/install-file,./htdocs/luci-static/resources/view/meshconf/meshconf.js,$(1)/www/luci-static/resources/view/meshconf/meshconf.js,0644)
-	$(call MeshConf/install-file,./htdocs/luci-static/resources/view/meshconf/steering.js,$(1)/www/luci-static/resources/view/meshconf/steering.js,0644)
-	$(call MeshConf/install-file,./htdocs/luci-static/resources/view/meshconf/ds-tokens.js,$(1)/www/luci-static/resources/view/meshconf/ds-tokens.js,0644)
-	$(call MeshConf/install-exec,./root/usr/libexec/rpcd/luci.meshconf,$(1)/usr/libexec/rpcd/luci.meshconf)
-	$(call MeshConf/install-exec,./root/usr/sbin/meshconf-beacon,$(1)/usr/sbin/meshconf-beacon)
-	$(call MeshConf/install-file,./root/usr/share/meshconf/lib.sh,$(1)/usr/share/meshconf/lib.sh,0644)
-	$(call MeshConf/install-exec,./root/usr/share/meshconf/www/cgi/sync,$(1)/usr/share/meshconf/www/cgi/sync)
-	$(call MeshConf/install-file,./root/usr/share/luci/menu.d/luci-app-mesh-conf.json,$(1)/usr/share/luci/menu.d/luci-app-mesh-conf.json,0644)
-	$(call MeshConf/install-file,./root/usr/share/rpcd/acl.d/luci-app-mesh-conf.json,$(1)/usr/share/rpcd/acl.d/luci-app-mesh-conf.json,0644)
-	$(call MeshConf/install-exec,./root/etc/init.d/meshconf,$(1)/etc/init.d/meshconf)
-
-	# Only a default: an upgrade must not overwrite the sync key the operator
-	# already set. When $(1) is the live rootfs the file exists and is kept.
-	$(INSTALL_DIR) $(1)/etc/config
-	[ -f $(1)/etc/config/meshconf ] || \
-		(tr -d '\r' < ./root/etc/config/meshconf > $(MESHCONF_STAGE)/meshconf && \
-		 install -m 0644 $(MESHCONF_STAGE)/meshconf $(1)/etc/config/meshconf)
-
-	# The package is usually built into the image (=y), so postinst runs with
-	# IPKG_INSTROOT set and bails out before it can enable the service.
-	# Ship the rc.d link in the image instead.
-	$(INSTALL_DIR) $(1)/etc/rc.d
-	ln -sf ../init.d/meshconf $(1)/etc/rc.d/S95meshconf
+# Only a default: an upgrade must not overwrite the sync key the operator
+# already configured. Declaring the file as a conffile gives that guarantee
+# through the package manager instead of the old `[ -f ... ] || install` probe.
+define Package/luci-app-mesh-conf/conffiles
+/etc/config/meshconf
 endef
 
 define Package/$(LUCI_NAME)/postinst
@@ -132,5 +111,7 @@ rm -f /etc/rc.d/S??meshconf
 /etc/init.d/rpcd restart 2>/dev/null
 exit 0
 endef
+
+include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature
